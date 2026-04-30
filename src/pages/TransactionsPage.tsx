@@ -212,6 +212,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const [categoryId, setCategoryId] = useState('')
   const [chargeDate, setChargeDate] = useState('')
   const [status, setStatus] = useState<TransactionStatus>('pending')
+  const [launchDate, setLaunchDate] = useState('')
   const [chargeDay, setChargeDay] = useState('1')
 
   // Installment specific
@@ -226,6 +227,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setCategoryId(categories[0]?.id ?? '')
     const m = String(defaultMonth).padStart(2, '0')
     setChargeDate(`${defaultYear}-${m}-01`)
+    setLaunchDate(todayISO())
     setStatus('pending')
     setInstallments('2')
     setFirstDate(todayISO())
@@ -239,6 +241,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
         setCategoryId(editItem.categoryId)
         setChargeDate(editItem.chargeDate)
+        setLaunchDate(editItem.launchDate ?? todayISO())
         setStatus(editItem.status)
         setType(editItem.type)
       } else {
@@ -257,6 +260,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
         setCategoryId(editItem.categoryId)
         setChargeDate(editItem.chargeDate)
+        setLaunchDate(editItem.launchDate ?? todayISO())
         setStatus(editItem.status)
         setType(editItem.type)
       }, 0)
@@ -279,6 +283,8 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
 
     setLoading(true)
     try {
+      if (type === 'normal' && !launchDate) { toast.error('Informe a data do lançamento'); return }
+
       if (type === 'installment') {
         if (!firstDate) { toast.error('Informe a data da primeira parcela'); return }
         const n = parseInt(installments)
@@ -296,7 +302,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         })
         toast.success('Parcelamento criado!')
       } else if (type === 'fixed') {
-        const { addFixedAccount } = await import('../services/firestore')
+        const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
         const day = parseInt(chargeDay)
         await addFixedAccount(user.uid, {
           description,
@@ -306,6 +312,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           chargeDay: day,
           active: true,
         })
+        await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
         toast.success('Conta fixa cadastrada!')
       } else {
         const { month, year } = getMonthYear(chargeDate)
@@ -314,7 +321,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           value,
           categoryId,
           categoryName: selectedCat?.name ?? '',
-          launchDate: todayISO(),
+          launchDate,
           chargeDate,
           month,
           year,
@@ -402,6 +409,12 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
 
         {type === 'normal' && (
           <>
+            <Input
+              label="Data do lançamento"
+              type="date"
+              value={launchDate}
+              onChange={(e) => setLaunchDate(e.target.value)}
+            />
             <Input
               label="Data de cobrança"
               type="date"
