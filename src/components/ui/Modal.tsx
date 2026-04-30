@@ -11,14 +11,38 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg'
 }
 
+// Scroll lock robusto para iOS/Android: usa position:fixed preservando posição
+let scrollY = 0
+let lockCount = 0
+
+function lockScroll() {
+  if (lockCount === 0) {
+    scrollY = window.scrollY
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.overflowY = 'scroll'
+  }
+  lockCount++
+}
+
+function unlockScroll() {
+  lockCount = Math.max(0, lockCount - 1)
+  if (lockCount === 0) {
+    document.body.style.position = ''
+    document.body.style.top = ''
+    document.body.style.width = ''
+    document.body.style.overflowY = ''
+    window.scrollTo({ top: scrollY, behavior: 'instant' })
+  }
+}
+
 export function Modal({ open, onClose, title, children, footer, size = 'md' }: ModalProps) {
   useEffect(() => {
     if (open) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
+      lockScroll()
+      return () => unlockScroll()
     }
-    return () => { document.body.style.overflow = '' }
   }, [open])
 
   if (!open) return null

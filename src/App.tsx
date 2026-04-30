@@ -10,19 +10,20 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { FixedAccountsPage } from './pages/FixedAccountsPage'
 import { InstallmentsPage } from './pages/InstallmentsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
-import { PageLoader } from './components/ui/Loading'
+import { SplashScreen } from './components/ui/SplashScreen'
+import { PWAUpdateBanner } from './components/ui/PWAUpdateBanner'
 import React from 'react'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <PageLoader />
+  if (loading) return null
   if (!user) return <Navigate to="/login" replace />
   return <AppLayout>{children}</AppLayout>
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) return <PageLoader />
+  if (loading) return null
   if (user) return <Navigate to="/" replace />
   return <>{children}</>
 }
@@ -41,6 +42,16 @@ function AppRoutes() {
   )
 }
 
+function AppWithSplash() {
+  const { loading } = useAuth()
+  return (
+    <>
+      <SplashScreen ready={!loading} />
+      <AppRoutes />
+    </>
+  )
+}
+
 export default function App() {
   const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
   return (
@@ -48,8 +59,9 @@ export default function App() {
       <InstallPWAProvider>
         <AuthProvider>
           <BrowserRouter basename={basename}>
-            <AppRoutes />
+            <AppWithSplash />
             <ToastContainer />
+            <PWAUpdateBanner />
           </BrowserRouter>
         </AuthProvider>
       </InstallPWAProvider>
