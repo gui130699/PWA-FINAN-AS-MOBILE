@@ -132,22 +132,22 @@ export function TransactionsPage() {
                 <div className="text-right shrink-0">
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{formatCurrency(t.value)}</p>
                 </div>
-                {t.type === 'normal' && (
-                  <div className="flex gap-1 shrink-0">
+                <div className="flex gap-1 shrink-0">
+                  {t.type === 'normal' && (
                     <button
                       onClick={() => { setEditItem(t); setModalOpen(true) }}
                       className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => setDeleteId(t.id)}
-                      className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
+                  )}
+                  <button
+                    onClick={() => setDeleteId(t.id)}
+                    className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
