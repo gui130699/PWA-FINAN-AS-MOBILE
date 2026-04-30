@@ -41,6 +41,8 @@ export interface FixedAccount {
   categoryId: string
   categoryName: string
   chargeDay: number
+  startMonth: number
+  startYear: number
   active: boolean
   createdAt: Timestamp
   updatedAt: Timestamp

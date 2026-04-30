@@ -92,7 +92,14 @@ export async function generateFixedAccountsForMonth(
   year: number
 ): Promise<{ created: number; skipped: number }> {
   const accounts = await getFixedAccounts(uid)
-  const activeAccounts = accounts.filter((a) => a.active)
+  const activeAccounts = accounts.filter((a) => {
+    if (!a.active) return false
+    // Só gera se o mês/ano da tela for >= ao mês/ano do primeiro pagamento
+    if (!a.startYear || !a.startMonth) return true // compatibilidade com registros antigos
+    if (year > a.startYear) return true
+    if (year === a.startYear && month >= a.startMonth) return true
+    return false
+  })
 
   // Check existing transactions for this month
   const existing = await getDocs(

@@ -305,17 +305,20 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
         const [chargeYearStr, chargeMonthStr, chargeDayStr] = chargeDate.split('-')
         const day = parseInt(chargeDayStr)
-        const chargeMonth = parseInt(chargeMonthStr)
-        const chargeYear = parseInt(chargeYearStr)
+        const startMonth = parseInt(chargeMonthStr)
+        const startYear = parseInt(chargeYearStr)
         await addFixedAccount(user.uid, {
           description,
           value,
           categoryId,
           categoryName: selectedCat?.name ?? '',
           chargeDay: day,
+          startMonth,
+          startYear,
           active: true,
         })
-        await generateFixedAccountsForMonth(user.uid, chargeMonth, chargeYear)
+        // Gera lançamento para o mês em tela (não o mês de hoje nem o da data selecionada)
+        await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
         toast.success('Conta fixa cadastrada!')
       } else {
         const { month, year } = getMonthYear(chargeDate)
