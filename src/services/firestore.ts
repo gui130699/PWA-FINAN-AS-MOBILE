@@ -10,14 +10,12 @@ import {
   orderBy,
   Timestamp,
   writeBatch,
-  getDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Category, Transaction, FixedAccount, InstallmentGroup } from '../types'
 import { addMonths, getMonthYear } from '../utils/formatters'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-const userCol = (uid: string) => `users/${uid}`
 const col = (uid: string, sub: string) => collection(db, `users/${uid}/${sub}`)
 
 function now() {

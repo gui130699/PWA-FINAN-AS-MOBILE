@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, CheckCircle, Clock, Filter } from 'lucide-react'
+import { Plus, Pencil, Trash2, CheckCircle, Clock } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -8,24 +8,12 @@ import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useTransactions } from '../hooks/useTransactions'
 import { useCategories } from '../hooks/useCategories'
-import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
 import { useAuth } from '../contexts/AuthContext'
-import { addCategory } from '../services/firestore'
+import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
 import { createInstallmentGroup } from '../services/firestore'
 import type { Transaction, TransactionType, TransactionStatus } from '../types'
 
-const DEFAULT_CATEGORIES = [
-  { name: 'Alimentação', color: '#f97316', type: 'expense' as const },
-  { name: 'Transporte', color: '#3b82f6', type: 'expense' as const },
-  { name: 'Moradia', color: '#8b5cf6', type: 'expense' as const },
-  { name: 'Saúde', color: '#ef4444', type: 'expense' as const },
-  { name: 'Lazer', color: '#ec4899', type: 'expense' as const },
-  { name: 'Educação', color: '#22c55e', type: 'expense' as const },
-  { name: 'Outros', color: '#64748b', type: 'both' as const },
-]
-
 export function TransactionsPage() {
-  const { user } = useAuth()
   const { month: cm, year: cy } = currentMonthYear()
   const [month, setMonth] = useState(cm)
   const [year, setYear] = useState(cy)
@@ -36,8 +24,8 @@ export function TransactionsPage() {
   const [editItem, setEditItem] = useState<Transaction | null>(null)
   const [delLoading, setDelLoading] = useState(false)
 
-  const { transactions, loading, add, update, remove, reload } = useTransactions(month, year)
-  const { categories, reload: reloadCats } = useCategories()
+  const { transactions, loading, update, remove, reload } = useTransactions(month, year)
+  const { categories } = useCategories()
 
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { ChevronRight, Trash2, CheckCircle, Clock, AlertTriangle, CreditCard } from 'lucide-react'
-import { Button } from '../components/ui/Button'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
 import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
@@ -15,7 +14,7 @@ const statusConfig = {
 }
 
 export function InstallmentsPage() {
-  const { groups, loading, remove, getTransactions, payInstallment, reload } = useInstallments()
+  const { groups, loading, remove, getTransactions, payInstallment } = useInstallments()
   const [selectedGroup, setSelectedGroup] = useState<InstallmentGroup | null>(null)
   const [groupTransactions, setGroupTransactions] = useState<Transaction[]>([])
   const [detailOpen, setDetailOpen] = useState(false)

@@ -1,4 +1,3 @@
-import React from 'react'
 import { monthName } from '../../utils/formatters'
 
 interface MonthSelectorProps {

@@ -25,27 +25,6 @@
         { "fieldPath": "installmentGroupId", "order": "ASCENDING" },
         { "fieldPath": "chargeDate", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "installmentGroups",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "categories",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "name", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "fixedAccounts",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "description", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": []

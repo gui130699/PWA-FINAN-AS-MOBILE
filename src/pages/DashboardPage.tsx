@@ -116,7 +116,7 @@ export function DashboardPage() {
                 ))}
               </Pie>
               <Tooltip
-                formatter={(val: number) => [formatCurrency(val), '']}
+                formatter={(val) => [formatCurrency(Number(val)), '']}
                 contentStyle={{
                   borderRadius: '12px',
                   border: 'none',
