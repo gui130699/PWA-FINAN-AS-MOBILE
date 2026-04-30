@@ -86,6 +86,53 @@ export async function deleteFixedAccount(uid: string, id: string): Promise<void>
   await deleteDoc(doc(db, `users/${uid}/fixedAccounts/${id}`))
 }
 
+/**
+ * Atualiza startMonth/startYear de uma conta fixa e remove os lançamentos
+ * PENDENTES cujo mês/ano é anterior ao novo período de início.
+ * Lançamentos já pagos são mantidos independente da data.
+ */
+export async function updateFixedAccountStartDate(
+  uid: string,
+  id: string,
+  newStartMonth: number,
+  newStartYear: number
+): Promise<{ removed: number }> {
+  // Atualiza a conta fixa
+  await updateDoc(doc(db, `users/${uid}/fixedAccounts/${id}`), {
+    startMonth: newStartMonth,
+    startYear: newStartYear,
+    updatedAt: Timestamp.now(),
+  })
+
+  // Busca todos os lançamentos pendentes desta conta fixa
+  const snap = await getDocs(
+    query(
+      col(uid, 'transactions'),
+      where('fixedAccountId', '==', id),
+      where('status', '==', 'pending')
+    )
+  )
+
+  const batch = writeBatch(db)
+  let removed = 0
+
+  for (const d of snap.docs) {
+    const data = d.data()
+    const txYear: number = data.year
+    const txMonth: number = data.month
+    // Remove se o lançamento é anterior ao novo início
+    const isBeforeStart =
+      txYear < newStartYear || (txYear === newStartYear && txMonth < newStartMonth)
+    if (isBeforeStart) {
+      batch.delete(d.ref)
+      removed++
+    }
+  }
+
+  if (removed > 0) await batch.commit()
+  return { removed }
+}
+
 export async function generateFixedAccountsForMonth(
   uid: string,
   month: number,

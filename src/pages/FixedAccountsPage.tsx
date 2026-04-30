@@ -8,6 +8,8 @@ import { toast } from '../components/ui/Toast'
 import { useFixedAccounts } from '../hooks/useFixedAccounts'
 import { useCategories } from '../hooks/useCategories'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear } from '../utils/formatters'
+import { updateFixedAccountStartDate } from '../services/firestore'
+import { useAuth } from '../contexts/AuthContext'
 import type { FixedAccount } from '../types'
 
 export function FixedAccountsPage() {
@@ -183,28 +185,37 @@ interface FixedAccountModalProps {
 }
 
 function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd, onUpdate }: FixedAccountModalProps) {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [description, setDescription] = useState('')
   const [valueStr, setValueStr] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [chargeDay, setChargeDay] = useState('1')
+  const [startDate, setStartDate] = useState('')
 
   const [initialized, setInitialized] = useState(false)
   if (open && !initialized) {
     setInitialized(true)
-    setTimeout(() => {
-      if (editItem) {
-        setDescription(editItem.description)
-        setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
-        setCategoryId(editItem.categoryId)
-        setChargeDay(String(editItem.chargeDay))
+    if (editItem) {
+      setDescription(editItem.description)
+      setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
+      setCategoryId(editItem.categoryId)
+      setChargeDay(String(editItem.chargeDay))
+      // Monta a data a partir de startYear/startMonth/chargeDay (ou vazio se não tiver)
+      if (editItem.startYear && editItem.startMonth) {
+        const m = String(editItem.startMonth).padStart(2, '0')
+        const d = String(editItem.chargeDay).padStart(2, '0')
+        setStartDate(`${editItem.startYear}-${m}-${d}`)
       } else {
-        setDescription('')
-        setValueStr('')
-        setCategoryId(categories[0]?.id ?? '')
-        setChargeDay('1')
+        setStartDate('')
       }
-    }, 0)
+    } else {
+      setDescription('')
+      setValueStr('')
+      setCategoryId(categories[0]?.id ?? '')
+      setChargeDay('1')
+      setStartDate('')
+    }
   }
   if (!open && initialized) setInitialized(false)
 
@@ -220,18 +231,53 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
     setLoading(true)
     try {
       const selectedCat = categories.find((c) => c.id === categoryId)
-      const data = {
-        description,
-        value,
-        categoryId,
-        categoryName: selectedCat?.name ?? '',
-        chargeDay: day,
-        active: editItem?.active ?? true,
-      }
+
       if (editItem) {
+        // Verifica se a data de início mudou
+        let newStartMonth: number | undefined
+        let newStartYear: number | undefined
+        if (startDate) {
+          const [yearStr, monthStr] = startDate.split('-')
+          newStartMonth = parseInt(monthStr)
+          newStartYear = parseInt(yearStr)
+        }
+
+        const data = {
+          description,
+          value,
+          categoryId,
+          categoryName: selectedCat?.name ?? '',
+          chargeDay: day,
+          ...(newStartMonth && newStartYear ? { startMonth: newStartMonth, startYear: newStartYear } : {}),
+          active: editItem.active,
+        }
         await onUpdate(editItem.id, data)
-        toast.success('Conta fixa atualizada')
+
+        // Se a data de início mudou, ajusta os lançamentos pendentes
+        const startChanged =
+          newStartMonth !== undefined &&
+          newStartYear !== undefined &&
+          (newStartMonth !== editItem.startMonth || newStartYear !== editItem.startYear)
+
+        if (startChanged && newStartMonth && newStartYear && user) {
+          const { removed } = await updateFixedAccountStartDate(user.uid, editItem.id, newStartMonth, newStartYear)
+          if (removed > 0) {
+            toast.success(`Conta atualizada · ${removed} lançamento(s) pendente(s) removido(s)`)
+          } else {
+            toast.success('Conta fixa atualizada')
+          }
+        } else {
+          toast.success('Conta fixa atualizada')
+        }
       } else {
+        const data: any = {
+          description,
+          value,
+          categoryId,
+          categoryName: selectedCat?.name ?? '',
+          chargeDay: day,
+          active: true,
+        }
         await onAdd(data)
         toast.success('Conta fixa criada')
       }
@@ -263,6 +309,19 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
         <Input label="Dia de cobrança (1-31)" type="number" min="1" max="31" value={chargeDay} onChange={(e) => setChargeDay(e.target.value)} />
+        {editItem && (
+          <div className="flex flex-col gap-1">
+            <Input
+              label="Data da primeira cobrança"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Lançamentos pendentes anteriores a esta data serão removidos. Pagos são mantidos.
+            </p>
+          </div>
+        )}
       </form>
     </Modal>
   )
