@@ -303,7 +303,10 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
       } else if (type === 'fixed') {
         if (!chargeDate) { toast.error('Informe a data da primeira cobrança'); return }
         const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
-        const day = parseInt(chargeDate.split('-')[2])
+        const [chargeYearStr, chargeMonthStr, chargeDayStr] = chargeDate.split('-')
+        const day = parseInt(chargeDayStr)
+        const chargeMonth = parseInt(chargeMonthStr)
+        const chargeYear = parseInt(chargeYearStr)
         await addFixedAccount(user.uid, {
           description,
           value,
@@ -312,7 +315,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           chargeDay: day,
           active: true,
         })
-        await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
+        await generateFixedAccountsForMonth(user.uid, chargeMonth, chargeYear)
         toast.success('Conta fixa cadastrada!')
       } else {
         const { month, year } = getMonthYear(chargeDate)
