@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, Power, Calendar } from 'lucide-react'
+import { Plus, Pencil, Trash2, Power } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -7,19 +7,18 @@ import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useFixedAccounts } from '../hooks/useFixedAccounts'
 import { useCategories } from '../hooks/useCategories'
-import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear } from '../utils/formatters'
+import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from '../utils/formatters'
 import { updateFixedAccountStartDate } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import type { FixedAccount } from '../types'
 
 export function FixedAccountsPage() {
-  const { accounts, loading, add, update, remove, generate } = useFixedAccounts()
+  const { accounts, loading, add, update, remove } = useFixedAccounts()
   const { categories } = useCategories()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<FixedAccount | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [delLoading, setDelLoading] = useState(false)
-  const [genLoading, setGenLoading] = useState(false)
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -44,33 +43,11 @@ export function FixedAccountsPage() {
     }
   }
 
-  const handleGenerate = async () => {
-    const { month, year } = currentMonthYear()
-    setGenLoading(true)
-    try {
-      const { created, skipped } = await generate(month, year)
-      toast.success(`${created} conta(s) gerada(s)${skipped > 0 ? `, ${skipped} já existia(m)` : ''}`)
-    } catch {
-      toast.error('Erro ao gerar contas')
-    } finally {
-      setGenLoading(false)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h1 className="font-bold text-slate-900 dark:text-white text-lg hidden lg:block">Contas Fixas</h1>
         <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            icon={<Calendar className="w-4 h-4" />}
-            onClick={handleGenerate}
-            loading={genLoading}
-            size="sm"
-          >
-            Gerar mês atual
-          </Button>
           <Button
             icon={<Plus className="w-4 h-4" />}
             onClick={() => { setEditItem(null); setModalOpen(true) }}

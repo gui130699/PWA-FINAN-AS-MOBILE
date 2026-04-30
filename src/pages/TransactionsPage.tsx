@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, CheckCircle, Clock } from 'lucide-react'
+import { Plus, Pencil, Trash2, CheckCircle, Clock, Calendar } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -10,7 +10,7 @@ import { useTransactions } from '../hooks/useTransactions'
 import { useCategories } from '../hooks/useCategories'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
-import { createInstallmentGroup } from '../services/firestore'
+import { createInstallmentGroup, generateFixedAccountsForMonth } from '../services/firestore'
 import type { Transaction, TransactionType, TransactionStatus } from '../types'
 
 export function TransactionsPage() {
@@ -23,9 +23,11 @@ export function TransactionsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [editItem, setEditItem] = useState<Transaction | null>(null)
   const [delLoading, setDelLoading] = useState(false)
+  const [genLoading, setGenLoading] = useState(false)
 
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
+  const { user } = useAuth()
 
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
@@ -56,14 +58,39 @@ export function TransactionsPage() {
     }
   }
 
+  const handleGenerate = async () => {
+    if (!user) return
+    setGenLoading(true)
+    try {
+      const { created, skipped } = await generateFixedAccountsForMonth(user.uid, month, year)
+      toast.success(`${created} conta(s) gerada(s)${skipped > 0 ? `, ${skipped} já existia(m)` : ''}`)
+      reload()
+    } catch {
+      toast.error('Erro ao gerar contas')
+    } finally {
+      setGenLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
-        <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
-          Lançar
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            icon={<Calendar className="w-4 h-4" />}
+            onClick={handleGenerate}
+            loading={genLoading}
+            size="sm"
+          >
+            Gerar mês
+          </Button>
+          <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
+            Lançar
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
