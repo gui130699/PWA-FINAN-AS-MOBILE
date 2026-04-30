@@ -1,52 +1,57 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getInstallPrompt, clearInstallPrompt } from '../main'
 
+type Platform = 'android' | 'ios' | 'desktop' | 'installed'
+
 interface InstallPWAContextValue {
-  canInstall: boolean       // Chrome/Edge/Android — prompt nativo disponível
-  isIOS: boolean            // iOS/Safari — precisa de instrução manual
-  isInstalled: boolean      // já está rodando em standalone
+  showInstallUI: boolean   // true = exibir banner (não instalado e não dispensado)
+  canPrompt: boolean       // prompt nativo disponível (Chrome/Edge/Android)
+  platform: Platform
   isDismissed: boolean
   install: () => Promise<void>
   dismiss: () => void
 }
 
 const InstallPWAContext = createContext<InstallPWAContextValue>({
-  canInstall: false,
-  isIOS: false,
-  isInstalled: false,
+  showInstallUI: false,
+  canPrompt: false,
+  platform: 'android',
   isDismissed: false,
   install: async () => {},
   dismiss: () => {},
 })
 
-function detectIOS() {
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    // iPad Pro com iPadOS reporta como MacIntel mas tem touchpoints
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  )
+const DISMISS_KEY = 'pwa-install-dismissed'
+
+function detectPlatform(): Platform {
+  const ua = navigator.userAgent
+  const standalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as any).standalone === true
+  if (standalone) return 'installed'
+  if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+    return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'desktop'
 }
 
 export function InstallPWAProvider({ children }: { children: React.ReactNode }) {
+  const [platform] = useState<Platform>(detectPlatform)
+  const [isDismissed, setIsDismissed] = useState(() => localStorage.getItem(DISMISS_KEY) === '1')
   const [hasPrompt, setHasPrompt] = useState(!!getInstallPrompt())
-  const [isInstalled, setIsInstalled] = useState(false)
-  const [isDismissed, setIsDismissed] = useState(false)
-
-  const isIOS = detectIOS()
 
   useEffect(() => {
-    // Já instalado (modo standalone)?
-    const standalone =
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true
-    if (standalone) { setIsInstalled(true); return }
+    if (platform === 'installed') return
 
-    // O prompt pode já ter sido capturado antes do React montar
+    // Prompt já pode estar capturado de antes do React montar
     if (getInstallPrompt()) setHasPrompt(true)
 
-    // Caso o evento ainda não tenha disparado, aguarda via evento customizado
     const onReady = () => setHasPrompt(true)
-    const onInstalled = () => { setIsInstalled(true); clearInstallPrompt(); setHasPrompt(false) }
+    const onInstalled = () => {
+      clearInstallPrompt()
+      setHasPrompt(false)
+      localStorage.removeItem(DISMISS_KEY)
+    }
 
     window.addEventListener('pwa-install-ready', onReady)
     window.addEventListener('appinstalled', onInstalled)
@@ -54,25 +59,29 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
       window.removeEventListener('pwa-install-ready', onReady)
       window.removeEventListener('appinstalled', onInstalled)
     }
-  }, [])
+  }, [platform])
 
   const install = async () => {
     const prompt = getInstallPrompt()
     if (!prompt) return
     await prompt.prompt()
     const { outcome } = await prompt.userChoice
-    if (outcome === 'accepted') setIsInstalled(true)
-    clearInstallPrompt()
-    setHasPrompt(false)
+    if (outcome === 'accepted') {
+      clearInstallPrompt()
+      setHasPrompt(false)
+    }
   }
 
-  const dismiss = () => setIsDismissed(true)
+  const dismiss = () => {
+    localStorage.setItem(DISMISS_KEY, '1')
+    setIsDismissed(true)
+  }
 
-  const canInstall = hasPrompt && !isInstalled && !isDismissed
-  const showIOS = isIOS && !isInstalled && !isDismissed
+  const showInstallUI = platform !== 'installed' && !isDismissed
+  const canPrompt = hasPrompt && platform !== 'installed'
 
   return (
-    <InstallPWAContext.Provider value={{ canInstall, isIOS: showIOS, isInstalled, isDismissed, install, dismiss }}>
+    <InstallPWAContext.Provider value={{ showInstallUI, canPrompt, platform, isDismissed, install, dismiss }}>
       {children}
     </InstallPWAContext.Provider>
   )
