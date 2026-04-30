@@ -27,7 +27,10 @@ export function PWAUpdateBanner() {
           <p className="text-xs text-indigo-200 leading-tight">Atualize para ter as melhorias</p>
         </div>
         <button
-          onClick={() => updateServiceWorker(true)}
+          onClick={async () => {
+            await updateServiceWorker(true)
+            window.location.reload()
+          }}
           className="shrink-0 bg-white text-indigo-600 font-bold text-xs px-3 py-1.5 rounded-xl hover:bg-indigo-50 transition-colors"
         >
           Atualizar
