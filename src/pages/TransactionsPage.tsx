@@ -233,38 +233,20 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setValueMode('total')
   }
 
-  useState(() => {
-    if (open) {
-      if (editItem) {
-        setDescription(editItem.description)
-        setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
-        setCategoryId(editItem.categoryId)
-        setChargeDate(editItem.chargeDate)
-        setLaunchDate(editItem.launchDate ?? todayISO())
-        setStatus(editItem.status)
-        setType(editItem.type)
-      } else {
-        resetForm()
-      }
-    }
-  })
-
-  // Re-initialize when open changes
+  // Initialize form when modal opens (only once per open event)
   const [initialized, setInitialized] = useState(false)
   if (open && !initialized) {
     setInitialized(true)
     if (editItem) {
-      setTimeout(() => {
-        setDescription(editItem.description)
-        setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
-        setCategoryId(editItem.categoryId)
-        setChargeDate(editItem.chargeDate)
-        setLaunchDate(editItem.launchDate ?? todayISO())
-        setStatus(editItem.status)
-        setType(editItem.type)
-      }, 0)
+      setDescription(editItem.description)
+      setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
+      setCategoryId(editItem.categoryId)
+      setChargeDate(editItem.chargeDate)
+      setLaunchDate(editItem.launchDate ?? todayISO())
+      setStatus(editItem.status)
+      setType(editItem.type)
     } else {
-      setTimeout(() => resetForm(), 0)
+      resetForm()
     }
   }
   if (!open && initialized) setInitialized(false)

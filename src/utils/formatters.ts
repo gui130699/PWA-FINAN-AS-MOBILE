@@ -35,7 +35,10 @@ export function parseDateInput(ddmmyyyy: string): string {
 
 export function todayISO(): string {
   const d = new Date()
-  return d.toISOString().slice(0, 10)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
 
 export function monthName(month: number): string {
@@ -50,7 +53,10 @@ export function currentMonthYear(): { month: number; year: number } {
 export function addMonths(dateStr: string, months: number): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   const date = new Date(y, m - 1 + months, d)
-  return date.toISOString().slice(0, 10)
+  const yr = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, '0')
+  const dy = String(date.getDate()).padStart(2, '0')
+  return `${yr}-${mo}-${dy}`
 }
 
 export function getMonthYear(dateStr: string): { month: number; year: number } {
