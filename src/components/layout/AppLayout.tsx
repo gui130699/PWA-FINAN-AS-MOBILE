@@ -2,6 +2,7 @@ import React from 'react'
 import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
+import { InstallPWABannerMobile } from './InstallPWABanner'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -18,6 +19,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         </main>
       </div>
       <BottomNav />
+      <InstallPWABannerMobile />
     </div>
   )
 }

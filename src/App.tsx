@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { InstallPWAProvider } from './contexts/InstallPWAContext'
 import { ToastContainer } from './components/ui/Toast'
 import { AppLayout } from './components/layout/AppLayout'
 import { LoginPage } from './pages/LoginPage'
@@ -44,12 +45,14 @@ export default function App() {
   const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter basename={basename}>
-          <AppRoutes />
-          <ToastContainer />
-        </BrowserRouter>
-      </AuthProvider>
+      <InstallPWAProvider>
+        <AuthProvider>
+          <BrowserRouter basename={basename}>
+            <AppRoutes />
+            <ToastContainer />
+          </BrowserRouter>
+        </AuthProvider>
+      </InstallPWAProvider>
     </ThemeProvider>
   )
 }

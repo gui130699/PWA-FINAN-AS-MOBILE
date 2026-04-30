@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
+import { InstallPWABannerSidebar } from './InstallPWABanner'
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -58,6 +59,8 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      <InstallPWABannerSidebar />
 
       <div className="p-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-1">
         <div className="px-4 py-2">
