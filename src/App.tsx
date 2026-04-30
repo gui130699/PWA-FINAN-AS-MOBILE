@@ -41,7 +41,7 @@ function AppRoutes() {
 }
 
 export default function App() {
-  const basename = import.meta.env.BASE_URL
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/'
   return (
     <ThemeProvider>
       <AuthProvider>
