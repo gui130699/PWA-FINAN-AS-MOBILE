@@ -213,7 +213,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const [chargeDate, setChargeDate] = useState('')
   const [status, setStatus] = useState<TransactionStatus>('pending')
   const [launchDate, setLaunchDate] = useState('')
-  const [chargeDay, setChargeDay] = useState('1')
 
   // Installment specific
   const [installments, setInstallments] = useState('2')
@@ -302,8 +301,9 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         })
         toast.success('Parcelamento criado!')
       } else if (type === 'fixed') {
+        if (!chargeDate) { toast.error('Informe a data da primeira cobrança'); return }
         const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
-        const day = parseInt(chargeDay)
+        const day = parseInt(chargeDate.split('-')[2])
         await addFixedAccount(user.uid, {
           description,
           value,
@@ -430,12 +430,10 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
 
         {type === 'fixed' && (
           <Input
-            label="Dia de cobrança"
-            type="number"
-            min="1"
-            max="31"
-            value={chargeDay}
-            onChange={(e) => setChargeDay(e.target.value)}
+            label="Data da primeira cobrança"
+            type="date"
+            value={chargeDate}
+            onChange={(e) => setChargeDate(e.target.value)}
           />
         )}
 
