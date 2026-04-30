@@ -1,28 +1,39 @@
-import { Download, X, TrendingDown, Share, Monitor } from 'lucide-react'
+import { useState } from 'react'
+import { Download, X, TrendingDown, Share } from 'lucide-react'
 import { useInstallPWA } from '../../contexts/InstallPWAContext'
 
-// Conteúdo do banner conforme plataforma
 function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
   onInstall: () => void
   onDismiss: () => void
   canPrompt: boolean
   platform: string
 }) {
+  const [showSteps, setShowSteps] = useState(false)
+
+  const handleInstallClick = () => {
+    if (canPrompt) {
+      onInstall()
+    } else {
+      setShowSteps(true)
+    }
+  }
+
   if (platform === 'ios') {
     return (
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-xl p-4">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
-              <TrendingDown className="w-4 h-4 text-white" />
-            </div>
-            <p className="text-white font-semibold text-sm">Instalar no iPhone/iPad</p>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
+            <TrendingDown className="w-5 h-5 text-white" />
           </div>
-          <button onClick={onDismiss} className="p-1 text-slate-400 hover:text-white shrink-0" aria-label="Fechar">
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-semibold text-sm">Instalar o app</p>
+            <p className="text-slate-400 text-xs">Adicionar à tela inicial</p>
+          </div>
+          <button onClick={onDismiss} className="p-1.5 text-slate-400 hover:text-white shrink-0" aria-label="Fechar">
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="flex flex-col gap-2 text-xs text-slate-300">
+        <div className="flex flex-col gap-2 text-xs text-slate-300 pl-1">
           <div className="flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
             <span>Toque em <Share className="w-3.5 h-3.5 inline text-indigo-400" /> <strong className="text-white">Compartilhar</strong> no Safari</span>
@@ -40,9 +51,9 @@ function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
     )
   }
 
-  if (canPrompt) {
-    return (
-      <div className="bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-900/30 p-4 flex items-center gap-3">
+  return (
+    <div className="bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-900/30 p-4">
+      <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
           <TrendingDown className="w-5 h-5 text-white" />
         </div>
@@ -51,8 +62,8 @@ function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
           <p className="text-indigo-200 text-xs">Acesso rápido na tela inicial</p>
         </div>
         <button
-          onClick={onInstall}
-          className="flex items-center gap-1.5 bg-white text-indigo-600 font-semibold text-xs px-3 py-2 rounded-xl hover:bg-indigo-50 transition-colors shrink-0"
+          onClick={handleInstallClick}
+          className="flex items-center gap-1.5 bg-white text-indigo-600 font-semibold text-xs px-3 py-2 rounded-xl hover:bg-indigo-50 active:scale-95 transition-all shrink-0"
         >
           <Download className="w-3.5 h-3.5" />
           Instalar
@@ -61,22 +72,13 @@ function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
           <X className="w-4 h-4" />
         </button>
       </div>
-    )
-  }
-
-  // Desktop ou Android sem prompt nativo — instrução genérica
-  return (
-    <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-xl p-4 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0">
-        <Monitor className="w-5 h-5 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-white font-semibold text-sm">Instalar como app</p>
-        <p className="text-slate-400 text-xs">No Chrome: menu ⋮ → "Instalar aplicativo"</p>
-      </div>
-      <button onClick={onDismiss} className="p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors shrink-0" aria-label="Fechar">
-        <X className="w-4 h-4" />
-      </button>
+      {showSteps && (
+        <div className="mt-3 pt-3 border-t border-white/20 text-xs text-indigo-100 flex flex-col gap-1">
+          <p className="font-semibold text-white">Para instalar pelo Chrome:</p>
+          <p>1. Toque no menu <strong className="text-white">⋮</strong> (canto superior direito)</p>
+          <p>2. Selecione <strong className="text-white">"Instalar aplicativo"</strong> ou <strong className="text-white">"Adicionar à tela inicial"</strong></p>
+        </div>
+      )}
     </div>
   )
 }
@@ -95,8 +97,17 @@ export function InstallPWABannerMobile() {
 
 export function InstallPWABannerSidebar() {
   const { showInstallUI, canPrompt, platform, install, dismiss } = useInstallPWA()
+  const [showSteps, setShowSteps] = useState(false)
 
   if (!showInstallUI) return null
+
+  const handleInstallClick = () => {
+    if (canPrompt) {
+      install()
+    } else {
+      setShowSteps(s => !s)
+    }
+  }
 
   if (platform === 'ios') {
     return (
@@ -125,23 +136,25 @@ export function InstallPWABannerSidebar() {
           </div>
           <div>
             <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Instalar o app</p>
-            <p className="text-[10px] text-indigo-500 dark:text-indigo-400">
-              {canPrompt ? 'Acesso rápido na tela inicial' : 'Menu ⋮ → Instalar aplicativo'}
-            </p>
+            <p className="text-[10px] text-indigo-500 dark:text-indigo-400">Acesso rápido na tela inicial</p>
           </div>
         </div>
         <button onClick={dismiss} className="p-0.5 rounded-md text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors" aria-label="Fechar">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
-      {canPrompt && (
-        <button
-          onClick={install}
-          className="w-full flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Instalar agora
-        </button>
+      <button
+        onClick={handleInstallClick}
+        className="w-full flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-semibold py-2 rounded-lg transition-all"
+      >
+        <Download className="w-3.5 h-3.5" />
+        Instalar agora
+      </button>
+      {showSteps && (
+        <div className="mt-2 text-[10px] text-indigo-600 dark:text-indigo-300 flex flex-col gap-0.5">
+          <p>1. Toque no menu <strong>⋮</strong> do Chrome</p>
+          <p>2. Selecione <strong>"Instalar aplicativo"</strong></p>
+        </div>
       )}
     </div>
   )
