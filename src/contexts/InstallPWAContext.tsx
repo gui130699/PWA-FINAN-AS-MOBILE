@@ -8,7 +8,7 @@ interface InstallPWAContextValue {
   canPrompt: boolean       // prompt nativo disponível (Chrome/Edge/Android)
   platform: Platform
   isDismissed: boolean
-  install: () => Promise<void>
+  install: () => Promise<boolean>  // true = prompt foi mostrado, false = não disponível
   dismiss: () => void
 }
 
@@ -17,7 +17,7 @@ const InstallPWAContext = createContext<InstallPWAContextValue>({
   canPrompt: false,
   platform: 'android',
   isDismissed: false,
-  install: async () => {},
+  install: async () => false,
   dismiss: () => {},
 })
 
@@ -61,15 +61,16 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
     }
   }, [platform])
 
-  const install = async () => {
+  const install = async (): Promise<boolean> => {
     const prompt = getInstallPrompt()
-    if (!prompt) return
+    if (!prompt) return false
     await prompt.prompt()
     const { outcome } = await prompt.userChoice
     if (outcome === 'accepted') {
       clearInstallPrompt()
       setHasPrompt(false)
     }
+    return true
   }
 
   const dismiss = () => {

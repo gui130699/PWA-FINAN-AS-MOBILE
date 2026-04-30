@@ -2,18 +2,16 @@ import { useState } from 'react'
 import { Download, X, TrendingDown, Share } from 'lucide-react'
 import { useInstallPWA } from '../../contexts/InstallPWAContext'
 
-function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
-  onInstall: () => void
+function BannerContent({ onInstall, onDismiss, platform }: {
+  onInstall: () => Promise<boolean>
   onDismiss: () => void
-  canPrompt: boolean
   platform: string
 }) {
   const [showSteps, setShowSteps] = useState(false)
 
-  const handleInstallClick = () => {
-    if (canPrompt) {
-      onInstall()
-    } else {
+  const handleInstallClick = async () => {
+    const prompted = await onInstall()
+    if (!prompted) {
       setShowSteps(true)
     }
   }
@@ -84,27 +82,26 @@ function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
 }
 
 export function InstallPWABannerMobile() {
-  const { showInstallUI, canPrompt, platform, install, dismiss } = useInstallPWA()
+  const { showInstallUI, platform, install, dismiss } = useInstallPWA()
 
   if (!showInstallUI) return null
 
   return (
     <div className="lg:hidden fixed bottom-16 left-3 right-3 z-40">
-      <BannerContent onInstall={install} onDismiss={dismiss} canPrompt={canPrompt} platform={platform} />
+      <BannerContent onInstall={install} onDismiss={dismiss} platform={platform} />
     </div>
   )
 }
 
 export function InstallPWABannerSidebar() {
-  const { showInstallUI, canPrompt, platform, install, dismiss } = useInstallPWA()
+  const { showInstallUI, platform, install, dismiss } = useInstallPWA()
   const [showSteps, setShowSteps] = useState(false)
 
   if (!showInstallUI) return null
 
-  const handleInstallClick = () => {
-    if (canPrompt) {
-      install()
-    } else {
+  const handleInstallClick = async () => {
+    const prompted = await install()
+    if (!prompted) {
       setShowSteps(s => !s)
     }
   }
