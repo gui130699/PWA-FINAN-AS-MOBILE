@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind v4: dark mode via classe .dark no <html> */
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   * { box-sizing: border-box; }
   html {
