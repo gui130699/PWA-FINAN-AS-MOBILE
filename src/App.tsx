@@ -41,10 +41,11 @@ function AppRoutes() {
 }
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={basename}>
           <AppRoutes />
           <ToastContainer />
         </BrowserRouter>
