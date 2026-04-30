@@ -14,7 +14,8 @@ let _installPrompt: BeforeInstallPromptEvent | null = null
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault()
   _installPrompt = e as BeforeInstallPromptEvent
-  // Dispara evento customizado para o contexto React capturar
+  // Dispara evento customizado para o contexto React capturar (se já montado)
+  // Se React ainda não montou, o contexto vai checar getInstallPrompt() no useEffect
   window.dispatchEvent(new Event('pwa-install-ready'))
 })
 

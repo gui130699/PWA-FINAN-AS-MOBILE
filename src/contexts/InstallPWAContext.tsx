@@ -43,8 +43,16 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (platform === 'installed') return
 
-    // Prompt já pode estar capturado de antes do React montar
+    // Prompt já pode estar capturado antes do React montar (main.tsx)
     if (getInstallPrompt()) setHasPrompt(true)
+
+    // Fallback: escuta beforeinstallprompt diretamente (se disparar após React montar)
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault()
+      // main.tsx já capturou, mas garante que hasPrompt seja atualizado
+      setHasPrompt(true)
+      window.dispatchEvent(new Event('pwa-install-ready'))
+    }
 
     const onReady = () => setHasPrompt(true)
     const onInstalled = () => {
@@ -53,9 +61,11 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
       localStorage.removeItem(DISMISS_KEY)
     }
 
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('pwa-install-ready', onReady)
     window.addEventListener('appinstalled', onInstalled)
     return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
       window.removeEventListener('pwa-install-ready', onReady)
       window.removeEventListener('appinstalled', onInstalled)
     }

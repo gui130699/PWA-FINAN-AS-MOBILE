@@ -11,6 +11,7 @@ import { FixedAccountsPage } from './pages/FixedAccountsPage'
 import { InstallmentsPage } from './pages/InstallmentsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { SplashScreen } from './components/ui/SplashScreen'
+import { PWAUpdateBanner } from './components/ui/PWAUpdateBanner'
 import React from 'react'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,7 @@ export default function App() {
           <BrowserRouter basename={basename}>
             <AppWithSplash />
             <ToastContainer />
+            <PWAUpdateBanner />
           </BrowserRouter>
         </AuthProvider>
       </InstallPWAProvider>
