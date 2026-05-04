@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -289,9 +289,9 @@ export function TransactionsPage() {
                     {t.categoryName} · {t.chargeDate.split('-').reverse().join('/')}
                   </p>
                   {(t.type === 'fixed' || t.type === 'installment') && (
-                    <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">
-                      {t.type === 'fixed' && '🔁 Fixa'}
-                      {t.type === 'installment' && `📦 ${t.installmentNumber}/${t.totalInstallments}`}
+                    <p className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">
+                      {t.type === 'fixed' && <><span>🔁</span><span>Fixa</span></>}
+                      {t.type === 'installment' && <><CreditCard className="w-3 h-3" /><span>{t.installmentNumber}/{t.totalInstallments}</span></>}
                     </p>
                   )}
                 </div>
