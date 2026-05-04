@@ -1,19 +1,16 @@
 import { useRegisterSW } from 'virtual:pwa-register/react'
 
-// Atualização automática silenciosa: quando nova versão disponível, recarrega a página sozinho.
+// Verifica novas versões periodicamente.
+// O reload automático é feito em main.tsx via evento 'controllerchange'.
 export function PWAUpdateBanner() {
   useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
       if (registration) {
-        // Verifica atualização a cada 60s
+        // Verifica atualização a cada 30s
         setInterval(() => {
           registration.update().catch(() => {})
-        }, 60 * 1000)
+        }, 30 * 1000)
       }
-    },
-    onNeedRefresh() {
-      // Nova versão disponível: recarrega silenciosamente
-      window.location.reload()
     },
   })
 
