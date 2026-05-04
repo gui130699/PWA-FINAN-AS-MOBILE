@@ -186,28 +186,50 @@ function ResumoView({ grouped, catTypeMap }: { grouped: [string, Transaction[]][
     <div className="flex flex-col gap-3">
       {grouped.map(([key, txs]) => {
         const [year, month] = key.split('-')
-        let income = 0, expense = 0, paid = 0, pending = 0
+        let expTotal = 0, expPaid = 0, incTotal = 0, incPaid = 0
         for (const t of txs) {
           const n = getNature(t, catTypeMap)
-          if (n === 'income') income += t.value
-          else expense += t.value
-          if (t.status === 'paid') paid += t.value
-          else pending += t.value
+          if (n === 'income') {
+            incTotal += t.value
+            if (t.status === 'paid') incPaid += t.value
+          } else {
+            expTotal += t.value
+            if (t.status === 'paid') expPaid += t.value
+          }
         }
-        const balance = income - expense
+        const expPending = expTotal - expPaid
+        const incPending = incTotal - incPaid
         return (
-          <div key={key} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
-            <p className="font-semibold text-slate-800 dark:text-slate-100 mb-3">
+          <div key={key} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">
+            <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
               {month}/{year} · {txs.length} lançamento{txs.length !== 1 ? 's' : ''}
             </p>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Receitas</span><span className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(income)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Despesas</span><span className="font-semibold text-red-500 dark:text-red-400">{formatCurrency(expense)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Pago</span><span className="font-semibold text-slate-700 dark:text-slate-300">{formatCurrency(paid)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Pendente</span><span className="font-semibold text-amber-600 dark:text-amber-400">{formatCurrency(pending)}</span></div>
-              <div className="col-span-2 border-t border-slate-100 dark:border-slate-700 pt-2 flex justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Saldo</span>
-                <span className={`font-bold ${balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>{formatCurrency(balance)}</span>
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Despesas</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { label: 'Total Despesas',    value: expTotal,   bg: 'bg-indigo-50 dark:bg-indigo-900/20',  text: 'text-indigo-700 dark:text-indigo-300' },
+                  { label: 'Pago Despesas',     value: expPaid,    bg: 'bg-rose-50 dark:bg-rose-900/20',      text: 'text-rose-700 dark:text-rose-300' },
+                  { label: 'Pendente Despesas', value: expPending, bg: 'bg-amber-50 dark:bg-amber-900/20',    text: 'text-amber-700 dark:text-amber-300' },
+                ] as const).map((item) => (
+                  <div key={item.label} className={`${item.bg} rounded-xl p-2 text-center`}>
+                    <p className="text-[8px] sm:text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">{item.label}</p>
+                    <p className={`text-[11px] sm:text-xs font-bold ${item.text} leading-tight`}>{formatCurrency(item.value)}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-0.5">Entradas</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { label: 'Total Entradas',     value: incTotal,   bg: 'bg-emerald-50 dark:bg-emerald-900/20',  text: 'text-emerald-700 dark:text-emerald-300' },
+                  { label: 'Entradas Recebidas', value: incPaid,    bg: 'bg-teal-50 dark:bg-teal-900/20',        text: 'text-teal-700 dark:text-teal-300' },
+                  { label: 'Entradas Pendentes', value: incPending, bg: 'bg-lime-50 dark:bg-lime-900/20',        text: 'text-lime-700 dark:text-lime-300' },
+                ] as const).map((item) => (
+                  <div key={item.label} className={`${item.bg} rounded-xl p-2 text-center`}>
+                    <p className="text-[8px] sm:text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">{item.label}</p>
+                    <p className={`text-[11px] sm:text-xs font-bold ${item.text} leading-tight`}>{formatCurrency(item.value)}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
