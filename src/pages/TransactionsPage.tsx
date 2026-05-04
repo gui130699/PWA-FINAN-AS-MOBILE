@@ -73,11 +73,11 @@ export function TransactionsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <Button
             variant="secondary"
             icon={<Calendar className="w-4 h-4" />}
@@ -87,7 +87,7 @@ export function TransactionsPage() {
           >
             Gerar mês
           </Button>
-          <Button icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
+          <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
             Lançar
           </Button>
         </div>
@@ -133,7 +133,7 @@ export function TransactionsPage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {filtered.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 px-4 py-3">
+              <div key={t.id} className="flex items-center gap-2 px-3 py-3">
                 <button
                   onClick={() => handleTogglePaid(t)}
                   className={`shrink-0 transition-colors ${
@@ -143,34 +143,32 @@ export function TransactionsPage() {
                   }`}
                 >
                   {t.status === 'paid' ? (
-                    <CheckCircle className="w-6 h-6" />
+                    <CheckCircle className="w-5 h-5" />
                   ) : (
-                    <Clock className="w-6 h-6" />
+                    <Clock className="w-5 h-5" />
                   )}
                 </button>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.description}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                     {t.categoryName} · {t.chargeDate.split('-').reverse().join('/')}
                     {t.type === 'fixed' && ' · Fixa'}
                     {t.type === 'installment' && ` · ${t.installmentNumber}/${t.totalInstallments}`}
                   </p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{formatCurrency(t.value)}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(t.value)}</p>
+                <div className="flex gap-0.5 shrink-0">
                   {t.type === 'normal' && (
                     <button
                       onClick={() => { setEditItem(t); setModalOpen(true) }}
-                      className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
                   <button
                     onClick={() => setDeleteId(t.id)}
-                    className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

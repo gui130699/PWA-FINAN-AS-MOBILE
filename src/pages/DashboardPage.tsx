@@ -52,7 +52,6 @@ export function DashboardPage() {
     <div className="flex flex-col gap-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white hidden lg:block">Dashboard</h1>
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
       </div>
 

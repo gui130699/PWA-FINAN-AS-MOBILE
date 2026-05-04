@@ -14,7 +14,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar />
       <div className="lg:ml-64 flex flex-col min-h-dvh">
         <TopBar />
-        <main className="flex-1 px-4 py-4 pb-24 lg:pb-6 lg:px-6 max-w-5xl w-full mx-auto">
+        <main className="flex-1 px-3 py-3 pb-24 lg:pb-6 lg:px-6 max-w-5xl w-full mx-auto">
           {children}
         </main>
       </div>
