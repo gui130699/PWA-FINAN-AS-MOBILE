@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -50,6 +50,14 @@ export function CategoriesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Category | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const sortedCategories = useMemo(() => {
+    const presetIndex = (color: string) => {
+      const idx = PRESET_COLORS.findIndex(p => p.toLowerCase() === color.toLowerCase())
+      return idx === -1 ? PRESET_COLORS.length : idx
+    }
+    return [...categories].sort((a, b) => presetIndex(a.color) - presetIndex(b.color))
+  }, [categories])
   const [delLoading, setDelLoading] = useState(false)
 
   const handleDelete = async () => {
@@ -85,7 +93,7 @@ export function CategoriesPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {categories.map((c) => (
+          {sortedCategories.map((c) => (
             <div
               key={c.id}
               className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3"
