@@ -9,9 +9,38 @@ import { useCategories } from '../hooks/useCategories'
 import type { Category, CategoryType } from '../types'
 
 const PRESET_COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6',
-  '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899',
-  '#64748b', '#78716c',
+  // Vermelhos
+  '#ef4444', '#dc2626', '#b91c1c',
+  // Laranjas
+  '#f97316', '#ea580c',
+  // Âmbares / Amarelos
+  '#f59e0b', '#eab308', '#ca8a04',
+  // Limas
+  '#84cc16', '#65a30d',
+  // Verdes
+  '#22c55e', '#16a34a', '#15803d',
+  // Esmeraldas
+  '#10b981', '#059669',
+  // Teais
+  '#14b8a6', '#0d9488',
+  // Cianos
+  '#06b6d4', '#0891b2',
+  // Azuis claros
+  '#0ea5e9', '#0284c7',
+  // Azuis
+  '#3b82f6', '#2563eb',
+  // Índigos
+  '#6366f1', '#4f46e5',
+  // Violetas
+  '#8b5cf6', '#7c3aed', '#9333ea',
+  // Fúcsias
+  '#d946ef', '#c026d3',
+  // Rosas
+  '#ec4899', '#db2777',
+  // Roses
+  '#f43f5e', '#e11d48',
+  // Cinzas
+  '#64748b', '#475569', '#78716c', '#57534e',
 ]
 
 const TYPE_LABELS: Record<CategoryType, string> = {
@@ -99,6 +128,9 @@ export function CategoriesPage() {
         editItem={editItem}
         onAdd={add}
         onUpdate={update}
+        usedColors={categories
+          .filter((c) => !editItem || c.id !== editItem.id)
+          .map((c) => c.color.toLowerCase())}
       />
 
       <ConfirmDialog
@@ -121,9 +153,10 @@ interface CategoryModalProps {
   editItem: Category | null
   onAdd: (data: any) => Promise<void>
   onUpdate: (id: string, data: any) => Promise<void>
+  usedColors: string[]
 }
 
-function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate }: CategoryModalProps) {
+function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate, usedColors }: CategoryModalProps) {
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
   const [color, setColor] = useState(PRESET_COLORS[0])
@@ -190,18 +223,36 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate }: Ca
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cor</label>
           <div className="flex flex-wrap gap-2">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={`w-8 h-8 rounded-xl transition-transform ${color === c ? 'scale-125 ring-2 ring-offset-2 ring-slate-400' : ''}`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
+            {PRESET_COLORS.map((c) => {
+              const taken = usedColors.includes(c.toLowerCase())
+              const selected = color.toLowerCase() === c.toLowerCase()
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  disabled={taken}
+                  onClick={() => setColor(c)}
+                  title={taken ? 'Cor já utilizada' : c}
+                  className={`relative w-8 h-8 rounded-xl transition-transform
+                    ${selected ? 'scale-125 ring-2 ring-offset-2 ring-slate-400 dark:ring-offset-slate-800' : ''}
+                    ${taken ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 cursor-pointer'}
+                  `}
+                  style={{ backgroundColor: c }}
+                >
+                  {taken && (
+                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <svg viewBox="0 0 24 24" className="w-4 h-4 text-white drop-shadow" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                        <line x1="4" y1="4" x2="20" y2="20" />
+                        <line x1="20" y1="4" x2="4" y2="20" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Personalizada:</label>
+            <label className="text-xs text-slate-500 dark:text-slate-400">Personalizada:</label>
             <input
               type="color"
               value={color}
@@ -209,6 +260,11 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate }: Ca
               className="w-10 h-8 rounded-lg cursor-pointer border border-slate-200 dark:border-slate-600"
             />
           </div>
+          {usedColors.includes(color.toLowerCase()) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Esta cor já está em uso por outra categoria.
+            </p>
+          )}
         </div>
       </form>
     </Modal>
