@@ -12,7 +12,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { Category, Transaction, FixedAccount, InstallmentGroup } from '../types'
+import type { Category, Transaction, FixedAccount, InstallmentGroup, TransactionNature } from '../types'
 import { addMonths, getMonthYear } from '../utils/formatters'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -222,6 +222,7 @@ export async function generateFixedAccountsForMonth(
         status: 'pending',
         type: 'fixed',
         fixedAccountId: account.id,
+        ...(account.transactionNature ? { transactionNature: account.transactionNature } : {}),
         createdAt: now(),
         updatedAt: now(),
       })
@@ -249,6 +250,7 @@ export async function generateFixedAccountsForMonth(
           status: 'pending',
           type: 'fixed',
           fixedAccountId: account.id,
+          ...(account.transactionNature ? { transactionNature: account.transactionNature } : {}),
           createdAt: now(),
           updatedAt: now(),
         })
@@ -277,6 +279,7 @@ export async function createInstallmentGroup(
     installmentValue: number
     totalInstallments: number
     firstInstallmentDate: string
+    transactionNature?: TransactionNature
   }
 ): Promise<string> {
   const lastDate = addMonths(data.firstInstallmentDate, data.totalInstallments - 1)
@@ -312,6 +315,7 @@ export async function createInstallmentGroup(
       installmentGroupId: groupRef.id,
       installmentNumber: i + 1,
       totalInstallments: data.totalInstallments,
+      ...(data.transactionNature ? { transactionNature: data.transactionNature } : {}),
       createdAt: now(),
       updatedAt: now(),
     })

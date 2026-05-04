@@ -64,6 +64,8 @@ export interface FixedAccount {
   recurrenceType?: RecurrenceType
   /** 0=Dom, 1=Seg, ..., 6=Sáb. Usado somente quando recurrenceType === 'weekly'. */
   weekDay?: number
+  /** Natureza da conta: 'expense' ou 'income'. Necessário quando categoria é 'both'. */
+  transactionNature?: TransactionNature
   createdAt: Timestamp
   updatedAt: Timestamp
 }

@@ -554,6 +554,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           installmentValue: installVal,
           totalInstallments: n,
           firstInstallmentDate: firstDate,
+          transactionNature: effectiveNature,
         })
         toast.success('Parcelamento criado!')
       } else if (type === 'fixed') {
@@ -572,6 +573,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
             active: true,
             recurrenceType: 'weekly',
             weekDay,
+            transactionNature: effectiveNature,
           })
           await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
           toast.success('Conta fixa semanal cadastrada!')
@@ -592,6 +594,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
             startYear,
             active: true,
             recurrenceType: 'monthly',
+            transactionNature: effectiveNature,
           })
           await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
           toast.success('Conta fixa cadastrada!')

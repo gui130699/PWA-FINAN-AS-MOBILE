@@ -11,7 +11,7 @@ import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from '../util
 import { updateFixedAccountStartDate } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import { WEEK_DAY_LABELS } from '../types'
-import type { FixedAccount, RecurrenceType } from '../types'
+import type { FixedAccount, RecurrenceType, TransactionNature } from '../types'
 
 export function FixedAccountsPage() {
   const { accounts, loading, add, update, remove } = useFixedAccounts()
@@ -178,6 +178,13 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
   const [startDate, setStartDate] = useState('')
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('monthly')
   const [weekDay, setWeekDay] = useState<number>(1)
+  const [transactionNature, setTransactionNature] = useState<TransactionNature>('expense')
+
+  const selectedCatModal = categories.find((c: any) => c.id === categoryId)
+  const effectiveNature: TransactionNature =
+    selectedCatModal?.type === 'income' ? 'income'
+    : selectedCatModal?.type === 'expense' ? 'expense'
+    : transactionNature
 
   const [initialized, setInitialized] = useState(false)
   if (open && !initialized) {
@@ -190,6 +197,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       const rt: RecurrenceType = editItem.recurrenceType ?? 'monthly'
       setRecurrenceType(rt)
       setWeekDay(editItem.weekDay ?? 1)
+      setTransactionNature(editItem.transactionNature ?? 'expense')
       if (editItem.startYear && editItem.startMonth) {
         const m = String(editItem.startMonth).padStart(2, '0')
         const d = String(editItem.chargeDay).padStart(2, '0')
@@ -205,6 +213,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       setStartDate('')
       setRecurrenceType('monthly')
       setWeekDay(1)
+      setTransactionNature('expense')
     }
   }
   if (!open && initialized) setInitialized(false)
@@ -244,6 +253,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           chargeDay: isWeekly ? 1 : day,
           recurrenceType,
           ...(isWeekly ? { weekDay } : {}),
+          transactionNature: effectiveNature,
           ...(newStartMonth && newStartYear ? { startMonth: newStartMonth, startYear: newStartYear } : {}),
           active: editItem.active,
         }
@@ -275,6 +285,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           startYear: 0,
           active: true,
           recurrenceType,
+          transactionNature: effectiveNature,
           ...(isWeekly ? { weekDay } : {}),
         }
         await onAdd(data)
@@ -318,6 +329,29 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           <option value="">Selecione</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
+
+        {/* Natureza — só visível quando categoria é 'both' */}
+        {selectedCatModal?.type === 'both' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Natureza</label>
+            <div className="flex gap-2">
+              {(['expense', 'income'] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setTransactionNature(n)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                    transactionNature === n
+                      ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {n === 'income' ? '↑ Receita' : '↓ Despesa'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Recorrência */}
         <div className="flex flex-col gap-1">
