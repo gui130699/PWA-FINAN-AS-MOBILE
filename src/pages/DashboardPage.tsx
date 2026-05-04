@@ -20,8 +20,11 @@ import {
   CalendarCheck2,
   ChevronDown,
   ChevronUp,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { StatCard } from '../components/ui/Card'
+import { Modal } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
 import { MonthSelector } from '../components/ui/MonthSelector'
 import { PageLoader } from '../components/ui/Loading'
 import { useTransactions } from '../hooks/useTransactions'
@@ -30,6 +33,17 @@ import { usePWAUpdate } from '../hooks/usePWAUpdate'
 import { currentMonthYear, formatCurrency, formatDate, todayISO } from '../utils/formatters'
 import { APP_VERSION, formatBuildDate } from '../lib/version'
 import type { Transaction, TransactionNature } from '../types'
+
+const CARD_STORAGE_KEY = 'dashboard_visible_v1'
+
+type CardId =
+  | 'exp_total' | 'exp_paid' | 'exp_pending' | 'exp_fixed' | 'exp_inst'
+  | 'inc_paid' | 'inc_pending' | 'saldo_atual' | 'saldo_previsto' | 'inc_fixed' | 'inc_inst'
+
+const DEFAULT_VISIBLE: CardId[] = [
+  'exp_total', 'exp_paid', 'exp_pending', 'exp_fixed', 'exp_inst',
+  'inc_paid', 'inc_pending', 'saldo_atual', 'saldo_previsto', 'inc_fixed', 'inc_inst',
+]
 
 export function DashboardPage() {
   const { month: cm, year: cy } = currentMonthYear()
@@ -65,7 +79,8 @@ export function DashboardPage() {
     const incFixed = inc.filter((t) => t.type === 'fixed').reduce((s, t) => s + t.value, 0)
     const expInst = exp.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
     const incInst = inc.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
-    return { expTotal, expPaid, expPending, incTotal, incPaid, saldoAtual, saldoPrevisto, expFixed, incFixed, expInst, incInst }
+    const incPending = incTotal - incPaid
+    return { expTotal, expPaid, expPending, incTotal, incPaid, incPending, saldoAtual, saldoPrevisto, expFixed, incFixed, expInst, incInst }
   }, [transactions, catTypeMap])
 
   const alerts = useMemo(() => {
@@ -89,92 +104,84 @@ export function DashboardPage() {
     return Array.from(map.values()).sort((a, b) => b.value - a.value).slice(0, 8)
   }, [transactions])
 
+  const [visibleCards, setVisibleCards] = useState<CardId[]>(() => {
+    try {
+      const s = localStorage.getItem(CARD_STORAGE_KEY)
+      if (s) return JSON.parse(s) as CardId[]
+    } catch {}
+    return DEFAULT_VISIBLE
+  })
+  const [editMode, setEditMode] = useState(false)
+
+  const toggleCard = (id: CardId) => {
+    setVisibleCards((prev) => {
+      const next = prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+      localStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  const expCards = [
+    { id: 'exp_total' as CardId,   label: 'Total',      value: formatCurrency(stats.expTotal),   icon: <TrendingDown className="w-5 h-5" />, color: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
+    { id: 'exp_paid' as CardId,    label: 'Pagas',      value: formatCurrency(stats.expPaid),    icon: <CheckCircle className="w-5 h-5" />, color: 'bg-gradient-to-br from-emerald-500 to-emerald-700' },
+    { id: 'exp_pending' as CardId, label: 'Pendentes',  value: formatCurrency(stats.expPending), icon: <Clock className="w-5 h-5" />, color: 'bg-gradient-to-br from-amber-500 to-orange-600' },
+    { id: 'exp_fixed' as CardId,   label: 'Fixas',      value: formatCurrency(stats.expFixed),   icon: <RefreshCw className="w-5 h-5" />, color: 'bg-gradient-to-br from-blue-500 to-blue-700' },
+    { id: 'exp_inst' as CardId,    label: 'Parceladas', value: formatCurrency(stats.expInst),    icon: <CreditCard className="w-5 h-5" />, color: 'bg-gradient-to-br from-purple-500 to-purple-700' },
+  ]
+
+  const incCards = [
+    { id: 'inc_paid' as CardId,       label: 'Recebidas',      value: formatCurrency(stats.incPaid),       icon: <CheckCircle className="w-5 h-5" />, color: 'bg-gradient-to-br from-teal-500 to-teal-700' },
+    { id: 'inc_pending' as CardId,    label: 'A receber',      value: formatCurrency(stats.incPending),    icon: <Clock className="w-5 h-5" />, color: 'bg-gradient-to-br from-lime-500 to-lime-700' },
+    { id: 'saldo_atual' as CardId,    label: 'Saldo atual',    value: formatCurrency(stats.saldoAtual),    icon: <TrendingDown className="w-5 h-5" />, color: stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700' },
+    { id: 'saldo_previsto' as CardId, label: 'Saldo previsto', value: formatCurrency(stats.saldoPrevisto), icon: <TrendingDown className="w-5 h-5" />, color: stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700' },
+    { id: 'inc_fixed' as CardId,      label: 'Fixas',          value: formatCurrency(stats.incFixed),      icon: <RefreshCw className="w-5 h-5" />, color: 'bg-gradient-to-br from-cyan-500 to-cyan-700' },
+    { id: 'inc_inst' as CardId,       label: 'Parceladas',     value: formatCurrency(stats.incInst),       icon: <CreditCard className="w-5 h-5" />, color: 'bg-gradient-to-br from-fuchsia-500 to-fuchsia-700' },
+  ]
+
   if (loading) return <PageLoader />
 
   return (
     <div className="flex flex-col gap-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
+        <button
+          onClick={() => setEditMode(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors shrink-0"
+          title="Personalizar dashboard"
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Personalizar</span>
+        </button>
       </div>
 
       {/* Stats — Despesas */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Despesas</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          <StatCard
-            label="Total"
-            value={formatCurrency(stats.expTotal)}
-            icon={<TrendingDown className="w-5 h-5" />}
-            color="bg-gradient-to-br from-indigo-500 to-indigo-700"
-          />
-          <StatCard
-            label="Pagas"
-            value={formatCurrency(stats.expPaid)}
-            icon={<CheckCircle className="w-5 h-5" />}
-            color="bg-gradient-to-br from-emerald-500 to-emerald-700"
-          />
-          <StatCard
-            label="Pendentes"
-            value={formatCurrency(stats.expPending)}
-            icon={<Clock className="w-5 h-5" />}
-            color="bg-gradient-to-br from-amber-500 to-orange-600"
-          />
-          <StatCard
-            label="Fixas"
-            value={formatCurrency(stats.expFixed)}
-            icon={<RefreshCw className="w-5 h-5" />}
-            color="bg-gradient-to-br from-blue-500 to-blue-700"
-          />
-          <div className="col-span-2 sm:col-span-1">
-            <StatCard
-              label="Parceladas"
-              value={formatCurrency(stats.expInst)}
-              icon={<CreditCard className="w-5 h-5" />}
-              color="bg-gradient-to-br from-purple-500 to-purple-700"
-            />
+      {expCards.some((c) => visibleCards.includes(c.id)) && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Despesas</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {expCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
+              <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Stats — Receitas & Saldo */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Receitas &amp; Saldo</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          <StatCard
-            label="Recebidas"
-            value={formatCurrency(stats.incPaid)}
-            icon={<CheckCircle className="w-5 h-5" />}
-            color="bg-gradient-to-br from-teal-500 to-teal-700"
-          />
-          <StatCard
-            label="Saldo atual"
-            value={formatCurrency(stats.saldoAtual)}
-            icon={<TrendingDown className="w-5 h-5" />}
-            color={stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700'}
-          />
-          <StatCard
-            label="Saldo previsto"
-            value={formatCurrency(stats.saldoPrevisto)}
-            icon={<TrendingDown className="w-5 h-5" />}
-            color={stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700'}
-          />
-          <StatCard
-            label="Fixas"
-            value={formatCurrency(stats.incFixed)}
-            icon={<RefreshCw className="w-5 h-5" />}
-            color="bg-gradient-to-br from-cyan-500 to-cyan-700"
-          />
-          <div className="col-span-2 sm:col-span-1">
-            <StatCard
-              label="Parceladas"
-              value={formatCurrency(stats.incInst)}
-              icon={<CreditCard className="w-5 h-5" />}
-              color="bg-gradient-to-br from-fuchsia-500 to-fuchsia-700"
-            />
+      {incCards.some((c) => visibleCards.includes(c.id)) && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Receitas &amp; Saldo</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {incCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
+              <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
       {/* Alerts Panel */}
       {(alerts.overdue.length > 0 || alerts.dueToday.length > 0 || alerts.upcoming.length > 0) && (
@@ -273,7 +280,51 @@ export function DashboardPage() {
           </div>
         </div>
       )}
-      {/* Atualiza\u00e7\u00e3o do app — apenas mobile (desktop usa Sidebar) */}
+      {/* Edit Modal */}
+      <Modal
+        open={editMode}
+        onClose={() => setEditMode(false)}
+        title="Personalizar dashboard"
+        size="sm"
+        footer={<Button onClick={() => setEditMode(false)}>Concluído</Button>}
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Despesas</p>
+            <div className="flex flex-col gap-1">
+              {expCards.map((c) => (
+                <label key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{c.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={visibleCards.includes(c.id)}
+                    onChange={() => toggleCard(c.id)}
+                    className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Receitas &amp; Saldo</p>
+            <div className="flex flex-col gap-1">
+              {incCards.map((c) => (
+                <label key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{c.label}</span>
+                  <input
+                    type="checkbox"
+                    checked={visibleCards.includes(c.id)}
+                    onChange={() => toggleCard(c.id)}
+                    className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Atualização do app — apenas mobile (desktop usa Sidebar) */}
       <div className="lg:hidden bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">Controle Financeiro</p>
