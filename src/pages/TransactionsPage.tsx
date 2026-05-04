@@ -287,9 +287,13 @@ export function TransactionsPage() {
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.description}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                     {t.categoryName} · {t.chargeDate.split('-').reverse().join('/')}
-                    {t.type === 'fixed' && ' · Fixa'}
-                    {t.type === 'installment' && ` · ${t.installmentNumber}/${t.totalInstallments}`}
                   </p>
+                  {(t.type === 'fixed' || t.type === 'installment') && (
+                    <p className="text-[10px] font-semibold text-indigo-500 dark:text-indigo-400 mt-0.5">
+                      {t.type === 'fixed' && '🔁 Fixa'}
+                      {t.type === 'installment' && `📦 ${t.installmentNumber}/${t.totalInstallments}`}
+                    </p>
+                  )}
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(t.value)}</p>
                 <div className="flex flex-col items-end gap-1 shrink-0">
