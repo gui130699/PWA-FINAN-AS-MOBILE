@@ -282,7 +282,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   // Fixed account specific
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('monthly')
   const [weekDay, setWeekDay] = useState<number>(1)
-  const [chargeDay, setChargeDay] = useState('1')
 
   // Installment specific
   const [installments, setInstallments] = useState('2')
@@ -303,7 +302,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setValueMode('total')
     setRecurrenceType('monthly')
     setWeekDay(1)
-    setChargeDay('1')
   }
 
   // Initialize form when modal opens (only once per open event)
@@ -428,15 +426,9 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           status,
           type: 'normal' as const,
         }
-        if (editItem) {
-          const { updateTransaction } = await import('../services/firestore')
-          await updateTransaction(user.uid, editItem.id, payload)
-          toast.success('Lançamento atualizado!')
-        } else {
-          const { addTransaction } = await import('../services/firestore')
-          await addTransaction(user.uid, payload)
-          toast.success('Lançamento criado!')
-        }
+        const { addTransaction } = await import('../services/firestore')
+        await addTransaction(user.uid, payload)
+        toast.success('Lançamento criado!')
       }
       onSaved()
     } catch (err: any) {
