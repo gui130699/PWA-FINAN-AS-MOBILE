@@ -332,7 +332,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     const value = parseCurrencyInput(valueStr)
     if (value <= 0) { toast.error('Valor deve ser maior que zero'); return }
     if (!categoryId) { toast.error('Selecione a categoria'); return }
-    if (!chargeDate && type !== 'installment') { toast.error('Informe a data de cobrança'); return }
+    if (!chargeDate && type !== 'installment' && !(type === 'fixed' && recurrenceType === 'weekly')) { toast.error('Informe a data de cobrança'); return }
     if (!user) return
 
     setLoading(true)
