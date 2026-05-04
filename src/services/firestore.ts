@@ -133,6 +133,24 @@ export async function updateFixedAccountStartDate(
   return { removed }
 }
 
+/**
+ * Retorna todas as datas (YYYY-MM-DD) do mês/ano que caem no weekDay especificado.
+ * weekDay: 0=Dom, 1=Seg, ..., 6=Sáb
+ */
+export function getDatesForWeekDayInMonth(month: number, year: number, weekDay: number): string[] {
+  const dates: string[] = []
+  const daysInMonth = new Date(year, month, 0).getDate()
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month - 1, d)
+    if (date.getDay() === weekDay) {
+      const m = String(month).padStart(2, '0')
+      const dd = String(d).padStart(2, '0')
+      dates.push(`${year}-${m}-${dd}`)
+    }
+  }
+  return dates
+}
+
 export async function generateFixedAccountsForMonth(
   uid: string,
   month: number,
@@ -141,14 +159,13 @@ export async function generateFixedAccountsForMonth(
   const accounts = await getFixedAccounts(uid)
   const activeAccounts = accounts.filter((a) => {
     if (!a.active) return false
-    // Só gera se o mês/ano da tela for >= ao mês/ano do primeiro pagamento
-    if (!a.startYear || !a.startMonth) return true // compatibilidade com registros antigos
+    if (!a.startYear || !a.startMonth) return true
     if (year > a.startYear) return true
     if (year === a.startYear && month >= a.startMonth) return true
     return false
   })
 
-  // Check existing transactions for this month
+  // Busca lançamentos fixos já existentes no mês para evitar duplicatas
   const existing = await getDocs(
     query(
       col(uid, 'transactions'),
@@ -157,38 +174,85 @@ export async function generateFixedAccountsForMonth(
       where('type', '==', 'fixed')
     )
   )
-  const existingFixedIds = new Set(existing.docs.map((d) => d.data().fixedAccountId))
+
+  // Para mensais: controle por fixedAccountId
+  const existingMonthlyIds = new Set<string>()
+  // Para semanais: controle por fixedAccountId|chargeDate
+  const existingWeeklyKeys = new Set<string>()
+  for (const d of existing.docs) {
+    const data = d.data()
+    if (data.fixedAccountId) {
+      existingMonthlyIds.add(data.fixedAccountId)
+      if (data.chargeDate) {
+        existingWeeklyKeys.add(`${data.fixedAccountId}|${data.chargeDate}`)
+      }
+    }
+  }
 
   const batch = writeBatch(db)
   let created = 0
   let skipped = 0
+  const launchDate = new Date().toISOString().slice(0, 10)
 
   for (const account of activeAccounts) {
-    if (existingFixedIds.has(account.id)) {
-      skipped++
-      continue
-    }
-    const day = String(account.chargeDay).padStart(2, '0')
-    const m = String(month).padStart(2, '0')
-    const chargeDate = `${year}-${m}-${day}`
+    const isWeekly = account.recurrenceType === 'weekly'
 
-    const ref = doc(col(uid, 'transactions'))
-    batch.set(ref, {
-      description: account.description,
-      value: account.value,
-      categoryId: account.categoryId,
-      categoryName: account.categoryName,
-      launchDate: new Date().toISOString().slice(0, 10),
-      chargeDate,
-      month,
-      year,
-      status: 'pending',
-      type: 'fixed',
-      fixedAccountId: account.id,
-      createdAt: now(),
-      updatedAt: now(),
-    })
-    created++
+    if (!isWeekly) {
+      // ── Conta mensal (comportamento original) ──
+      if (existingMonthlyIds.has(account.id)) {
+        skipped++
+        continue
+      }
+      const day = String(account.chargeDay).padStart(2, '0')
+      const m = String(month).padStart(2, '0')
+      const chargeDate = `${year}-${m}-${day}`
+
+      const ref = doc(col(uid, 'transactions'))
+      batch.set(ref, {
+        description: account.description,
+        value: account.value,
+        categoryId: account.categoryId,
+        categoryName: account.categoryName,
+        launchDate,
+        chargeDate,
+        month,
+        year,
+        status: 'pending',
+        type: 'fixed',
+        fixedAccountId: account.id,
+        createdAt: now(),
+        updatedAt: now(),
+      })
+      created++
+    } else {
+      // ── Conta semanal ──
+      const wd = account.weekDay ?? 0
+      const dates = getDatesForWeekDayInMonth(month, year, wd)
+      for (const chargeDate of dates) {
+        const key = `${account.id}|${chargeDate}`
+        if (existingWeeklyKeys.has(key)) {
+          skipped++
+          continue
+        }
+        const ref = doc(col(uid, 'transactions'))
+        batch.set(ref, {
+          description: account.description,
+          value: account.value,
+          categoryId: account.categoryId,
+          categoryName: account.categoryName,
+          launchDate,
+          chargeDate,
+          month,
+          year,
+          status: 'pending',
+          type: 'fixed',
+          fixedAccountId: account.id,
+          createdAt: now(),
+          updatedAt: now(),
+        })
+        created++
+      }
+    }
   }
 
   await batch.commit()

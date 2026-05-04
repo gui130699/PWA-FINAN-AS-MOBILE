@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, CheckCircle, Clock, Calendar } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -24,6 +24,9 @@ export function TransactionsPage() {
   const [editItem, setEditItem] = useState<Transaction | null>(null)
   const [delLoading, setDelLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
+  const [reopenConfirmId, setReopenConfirmId] = useState<string | null>(null)
+  const [toggleLoading, setToggleLoading] = useState<string | null>(null)
+  const [rotatingId, setRotatingId] = useState<string | null>(null)
 
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
@@ -49,12 +52,39 @@ export function TransactionsPage() {
     }
   }
 
-  const handleTogglePaid = async (t: Transaction) => {
+  const handleToggleStatus = async (t: Transaction) => {
+    // paid → pending requer confirmação
+    if (t.status === 'paid') {
+      setReopenConfirmId(t.id)
+      return
+    }
+    // pending → paid: direto, sem confirmação
+    setRotatingId(t.id)
+    setToggleLoading(t.id)
     try {
-      await update(t.id, { status: t.status === 'paid' ? 'pending' : 'paid' })
-      toast.success(t.status === 'paid' ? 'Marcado como pendente' : 'Marcado como pago')
+      await update(t.id, { status: 'paid' })
+      toast.success('Pagamento marcado como pago')
     } catch {
       toast.error('Erro ao atualizar')
+    } finally {
+      setToggleLoading(null)
+      setTimeout(() => setRotatingId(null), 400)
+    }
+  }
+
+  const handleConfirmReopen = async () => {
+    if (!reopenConfirmId) return
+    setRotatingId(reopenConfirmId)
+    setToggleLoading(reopenConfirmId)
+    try {
+      await update(reopenConfirmId, { status: 'pending' })
+      toast.success('Pagamento reaberto')
+    } catch {
+      toast.error('Erro ao atualizar')
+    } finally {
+      setToggleLoading(null)
+      setReopenConfirmId(null)
+      setTimeout(() => setRotatingId(null), 400)
     }
   }
 
@@ -135,18 +165,20 @@ export function TransactionsPage() {
             {filtered.map((t) => (
               <div key={t.id} className="flex items-center gap-2 px-3 py-3">
                 <button
-                  onClick={() => handleTogglePaid(t)}
-                  className={`shrink-0 transition-colors ${
+                  onClick={() => handleToggleStatus(t)}
+                  disabled={rotatingId === t.id}
+                  title={t.status === 'paid' ? 'Reabrir pagamento' : 'Marcar como pago'}
+                  className={`shrink-0 cursor-pointer transition-all duration-300 ease-in-out active:scale-95 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
                     t.status === 'paid'
-                      ? 'text-emerald-500'
-                      : 'text-slate-300 hover:text-emerald-400'
+                      ? 'text-emerald-500 hover:text-emerald-400'
+                      : 'text-slate-400 hover:text-emerald-400'
                   }`}
                 >
-                  {t.status === 'paid' ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    <Clock className="w-5 h-5" />
-                  )}
+                  <RefreshCw
+                    className={`w-5 h-5 transition-transform duration-300 ${
+                      rotatingId === t.id ? 'animate-spin' : ''
+                    }`}
+                  />
                 </button>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.description}</p>
@@ -212,6 +244,15 @@ export function TransactionsPage() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
         loading={delLoading}
+      />
+
+      <ConfirmDialog
+        open={!!reopenConfirmId}
+        title="Reabrir pagamento"
+        message="Deseja reabrir este pagamento?"
+        onConfirm={handleConfirmReopen}
+        onCancel={() => setReopenConfirmId(null)}
+        loading={toggleLoading === reopenConfirmId}
       />
     </div>
   )

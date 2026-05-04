@@ -8,6 +8,10 @@ const base = isGitHubPages ? '/PWA-FINAN-AS-MOBILE/' : '/'
 
 export default defineConfig({
   base,
+  // __APP_VERSION__ é substituído em build time pelo timestamp ISO
+  define: {
+    __APP_VERSION__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -16,10 +20,10 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Controle Financeiro',
-        short_name: 'FinançasPWA',
+        short_name: 'Finanças',
         description: 'Controle financeiro pessoal completo',
-        theme_color: '#6366f1',
-        background_color: '#0f172a',
+        theme_color: '#4f46e5',
+        background_color: '#1e1b4b',
         display: 'standalone',
         orientation: 'portrait',
         scope: base,
@@ -33,7 +37,14 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Remove caches de versões anteriores automaticamente ao ativar o novo SW
+        cleanupOutdatedCaches: true,
+        // Não pré-cacheamos o HTML para que o browser sempre busque versão fresca
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        // Fallback offline: serve index.html para qualquer rota de navegação
+        navigateFallback: 'index.html',
+        // Não aplicar fallback a rotas de API ou arquivos com extensão
+        navigateFallbackDenylist: [/^\/__/, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/firestore\.googleapis\.com/,

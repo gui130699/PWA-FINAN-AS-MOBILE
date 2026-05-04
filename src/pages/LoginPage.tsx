@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { toast } from '../components/ui/Toast'
+import { APP_VERSION, formatBuildDate } from '../lib/version'
 
 type Mode = 'login' | 'register' | 'reset'
 
@@ -134,8 +135,7 @@ export function LoginPage() {
               </button>
             )}
           </div>
-        </div>
-      </div>
+        </div>        <p className="text-center text-[10px] text-white/30 mt-3">Build: {formatBuildDate(APP_VERSION)}</p>      </div>
     </div>
   )
 }

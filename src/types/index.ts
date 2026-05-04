@@ -34,6 +34,18 @@ export interface Transaction {
   updatedAt: Timestamp
 }
 
+export type RecurrenceType = 'monthly' | 'weekly'
+
+export const WEEK_DAY_LABELS: Record<number, string> = {
+  0: 'Domingo',
+  1: 'Segunda-feira',
+  2: 'Terça-feira',
+  3: 'Quarta-feira',
+  4: 'Quinta-feira',
+  5: 'Sexta-feira',
+  6: 'Sábado',
+}
+
 export interface FixedAccount {
   id: string
   description: string
@@ -44,6 +56,10 @@ export interface FixedAccount {
   startMonth: number
   startYear: number
   active: boolean
+  /** 'monthly' (padrão) ou 'weekly'. Ausente em registros antigos = mensal. */
+  recurrenceType?: RecurrenceType
+  /** 0=Dom, 1=Seg, ..., 6=Sáb. Usado somente quando recurrenceType === 'weekly'. */
+  weekDay?: number
   createdAt: Timestamp
   updatedAt: Timestamp
 }

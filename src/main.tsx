@@ -28,13 +28,34 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// Quando novo service worker assumir o controle, recarrega para servir novos assets
+// Quando novo service worker assumir o controle, exibe overlay e recarrega a página
 if ('serviceWorker' in navigator) {
   let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) {
-      refreshing = true
-      window.location.reload()
-    }
+    if (refreshing) return
+    // Proteção contra loop: só recarrega se o último reload foi há mais de 3s
+    const last = Number(sessionStorage.getItem('pwa-last-update') ?? 0)
+    if (Date.now() - last < 3000) return
+    refreshing = true
+    sessionStorage.setItem('pwa-last-update', String(Date.now()))
+
+    // Mostra overlay "Atualizando app..." antes de recarregar
+    const style = document.createElement('style')
+    style.textContent = '@keyframes _pwa_spin{to{transform:rotate(360deg)}}'
+    document.head.appendChild(style)
+
+    const overlay = document.createElement('div')
+    overlay.style.cssText =
+      'position:fixed;inset:0;background:rgba(15,23,42,0.92);display:flex;flex-direction:column;' +
+      'align-items:center;justify-content:center;z-index:9999;gap:14px;'
+    overlay.innerHTML =
+      '<div style="width:38px;height:38px;border:3px solid #6366f1;border-top-color:transparent;' +
+      'border-radius:50%;animation:_pwa_spin 0.75s linear infinite"></div>' +
+      '<p style="color:#a5b4fc;font-family:system-ui,sans-serif;font-size:15px;font-weight:500;margin:0">' +
+      'Atualizando app...</p>'
+    document.body.appendChild(overlay)
+
+    // Pequeno delay para o overlay ser visível antes do reload
+    setTimeout(() => window.location.reload(), 900)
   })
 }

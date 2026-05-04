@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, Power } from 'lucide-react'
+import React, { useState } from 'react'
+import { Plus, Pencil, Trash2, Power, RefreshCw } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -10,7 +10,8 @@ import { useCategories } from '../hooks/useCategories'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from '../utils/formatters'
 import { updateFixedAccountStartDate } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
-import type { FixedAccount } from '../types'
+import { WEEK_DAY_LABELS } from '../types'
+import type { FixedAccount, RecurrenceType } from '../types'
 
 export function FixedAccountsPage() {
   const { accounts, loading, add, update, remove } = useFixedAccounts()
@@ -89,13 +90,19 @@ export function FixedAccountsPage() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{a.description}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {a.categoryName} · Dia {a.chargeDay}
+                  {a.categoryName} ·{' '}
+                  {a.recurrenceType === 'weekly'
+                    ? `Toda ${WEEK_DAY_LABELS[a.weekDay ?? 0]?.toLowerCase()}`
+                    : `Todo dia ${a.chargeDay}`}
                 </p>
               </div>
               <div className="text-right shrink-0 mr-2">
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{formatCurrency(a.value)}</p>
-                <span className={`text-[10px] font-medium ${a.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                <span className={`text-[10px] font-medium block ${a.active ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
                   {a.active ? 'Ativa' : 'Inativa'}
+                </span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                  {a.recurrenceType === 'weekly' ? 'Semanal' : 'Mensal'}
                 </span>
               </div>
               <div className="flex flex-col gap-1 shrink-0">
@@ -169,6 +176,8 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
   const [categoryId, setCategoryId] = useState('')
   const [chargeDay, setChargeDay] = useState('1')
   const [startDate, setStartDate] = useState('')
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('monthly')
+  const [weekDay, setWeekDay] = useState<number>(1)
 
   const [initialized, setInitialized] = useState(false)
   if (open && !initialized) {
@@ -178,7 +187,9 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
       setCategoryId(editItem.categoryId)
       setChargeDay(String(editItem.chargeDay))
-      // Monta a data a partir de startYear/startMonth/chargeDay (ou vazio se não tiver)
+      const rt: RecurrenceType = editItem.recurrenceType ?? 'monthly'
+      setRecurrenceType(rt)
+      setWeekDay(editItem.weekDay ?? 1)
       if (editItem.startYear && editItem.startMonth) {
         const m = String(editItem.startMonth).padStart(2, '0')
         const d = String(editItem.chargeDay).padStart(2, '0')
@@ -192,6 +203,8 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       setCategoryId(categories[0]?.id ?? '')
       setChargeDay('1')
       setStartDate('')
+      setRecurrenceType('monthly')
+      setWeekDay(1)
     }
   }
   if (!open && initialized) setInitialized(false)
@@ -202,15 +215,19 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
     const value = parseCurrencyInput(valueStr)
     if (value <= 0) { toast.error('Valor inválido'); return }
     if (!categoryId) { toast.error('Selecione a categoria'); return }
-    const day = parseInt(chargeDay)
-    if (day < 1 || day > 31) { toast.error('Dia inválido (1-31)'); return }
+
+    const isWeekly = recurrenceType === 'weekly'
+    let day = 1
+    if (!isWeekly) {
+      day = parseInt(chargeDay)
+      if (day < 1 || day > 31) { toast.error('Dia inválido (1-31)'); return }
+    }
 
     setLoading(true)
     try {
       const selectedCat = categories.find((c) => c.id === categoryId)
 
       if (editItem) {
-        // Verifica se a data de início mudou
         let newStartMonth: number | undefined
         let newStartYear: number | undefined
         if (startDate) {
@@ -219,18 +236,19 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           newStartYear = parseInt(yearStr)
         }
 
-        const data = {
+        const data: Partial<FixedAccount> = {
           description,
           value,
           categoryId,
           categoryName: selectedCat?.name ?? '',
-          chargeDay: day,
+          chargeDay: isWeekly ? 1 : day,
+          recurrenceType,
+          weekDay: isWeekly ? weekDay : undefined,
           ...(newStartMonth && newStartYear ? { startMonth: newStartMonth, startYear: newStartYear } : {}),
           active: editItem.active,
         }
         await onUpdate(editItem.id, data)
 
-        // Se a data de início mudou, ajusta os lançamentos pendentes
         const startChanged =
           newStartMonth !== undefined &&
           newStartYear !== undefined &&
@@ -247,13 +265,17 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           toast.success('Conta fixa atualizada')
         }
       } else {
-        const data: any = {
+        const data: Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'> = {
           description,
           value,
           categoryId,
           categoryName: selectedCat?.name ?? '',
-          chargeDay: day,
+          chargeDay: isWeekly ? 1 : day,
+          startMonth: 0,
+          startYear: 0,
           active: true,
+          recurrenceType,
+          weekDay: isWeekly ? weekDay : undefined,
         }
         await onAdd(data)
         toast.success('Conta fixa criada')
@@ -279,13 +301,66 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       }
     >
       <form id="fixed-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input label="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Conta de água" />
-        <Input label="Valor (R$)" value={valueStr} onChange={(e) => setValueStr(formatCurrencyInput(e.target.value))} inputMode="numeric" placeholder="0,00" />
+        <Input
+          label="Descrição"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Ex: Conta de água"
+        />
+        <Input
+          label="Valor (R$)"
+          value={valueStr}
+          onChange={(e) => setValueStr(formatCurrencyInput(e.target.value))}
+          inputMode="numeric"
+          placeholder="0,00"
+        />
         <Select label="Categoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">Selecione</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
-        <Input label="Dia de cobrança (1-31)" type="number" min="1" max="31" value={chargeDay} onChange={(e) => setChargeDay(e.target.value)} />
+
+        {/* Recorrência */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Recorrência</label>
+          <div className="flex gap-2">
+            {(['monthly', 'weekly'] as const).map((rt) => (
+              <button
+                key={rt}
+                type="button"
+                onClick={() => setRecurrenceType(rt)}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                  recurrenceType === rt
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {rt === 'monthly' ? 'Mensal' : 'Semanal'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {recurrenceType === 'monthly' ? (
+          <Input
+            label="Dia de cobrança (1-31)"
+            type="number"
+            min="1"
+            max="31"
+            value={chargeDay}
+            onChange={(e) => setChargeDay(e.target.value)}
+          />
+        ) : (
+          <Select
+            label="Dia da semana"
+            value={String(weekDay)}
+            onChange={(e) => setWeekDay(parseInt(e.target.value))}
+          >
+            {Object.entries(WEEK_DAY_LABELS).map(([val, label]) => (
+              <option key={val} value={val}>{label}</option>
+            ))}
+          </Select>
+        )}
+
         {editItem && (
           <div className="flex flex-col gap-1">
             <Input
@@ -303,6 +378,3 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
     </Modal>
   )
 }
-
-import React from 'react'
-import { RefreshCw } from 'lucide-react'

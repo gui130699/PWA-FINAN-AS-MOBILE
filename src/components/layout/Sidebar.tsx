@@ -9,10 +9,14 @@ import {
   Sun,
   Moon,
   TrendingDown,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { InstallPWABannerSidebar } from './InstallPWABanner'
+import { usePWAUpdate } from '../../hooks/usePWAUpdate'
+import { APP_VERSION, formatBuildDate } from '../../lib/version'
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -25,6 +29,7 @@ const links = [
 export function Sidebar() {
   const { logout, user } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { isChecking, checkForUpdate, clearAllCaches } = usePWAUpdate()
 
   return (
     <aside className="hidden lg:flex flex-col w-64 min-h-screen bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 fixed left-0 top-0 bottom-0 z-30">
@@ -74,12 +79,30 @@ export function Sidebar() {
           {theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
         </button>
         <button
+          onClick={checkForUpdate}
+          disabled={isChecking}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all disabled:opacity-50"
+        >
+          <RotateCcw className={`w-5 h-5 ${isChecking ? 'animate-spin' : ''}`} />
+          {isChecking ? 'Verificando...' : 'Verificar atualização'}
+        </button>
+        <button
+          onClick={clearAllCaches}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500 transition-all"
+        >
+          <Trash2 className="w-5 h-5" />
+          Limpar cache do app
+        </button>
+        <button
           onClick={logout}
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
         >
           <LogOut className="w-5 h-5" />
           Sair
         </button>
+        <div className="px-4 py-1">
+          <p className="text-[10px] text-slate-400 dark:text-slate-600">Build: {formatBuildDate(APP_VERSION)}</p>
+        </div>
       </div>
     </aside>
   )
