@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -16,6 +16,7 @@ import {
   generateFixedAccountsForYear,
   copyPendingFromPreviousMonth,
   updateInstallmentCascade,
+  bringPreviousMonthBalance,
 } from '../services/firestore'
 import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, TransactionNature } from '../types'
 import { WEEK_DAY_LABELS } from '../types'
@@ -37,6 +38,9 @@ export function TransactionsPage() {
   const [genYearOpen, setGenYearOpen] = useState(false)
   const [copyPrevLoading, setCopyPrevLoading] = useState(false)
   const [copyPrevOpen, setCopyPrevOpen] = useState(false)
+  const [balanceOpen, setBalanceOpen] = useState(false)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+  const [balanceCatId, setBalanceCatId] = useState('')
 
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
@@ -127,12 +131,42 @@ export function TransactionsPage() {
     }
   }
 
+  const handleBringBalance = async () => {
+    if (!user || !balanceCatId) return
+    const cat = categories.find((c) => c.id === balanceCatId)
+    if (!cat) return
+    setBalanceLoading(true)
+    try {
+      const { balance } = await bringPreviousMonthBalance(user.uid, month, year, balanceCatId, cat.name)
+      const prevMonth = month === 1 ? 12 : month - 1
+      const prevYear = month === 1 ? year - 1 : year
+      const signal = balance >= 0 ? '+' : ''
+      toast.success(`Saldo de ${String(prevMonth).padStart(2, '0')}/${prevYear}: ${signal}${formatCurrency(balance)} lançado`)
+      reload()
+      setBalanceOpen(false)
+      setBalanceCatId('')
+    } catch {
+      toast.error('Erro ao trazer saldo')
+    } finally {
+      setBalanceLoading(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
         <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+          <Button
+            variant="secondary"
+            icon={<Banknote className="w-4 h-4" />}
+            onClick={() => setBalanceOpen(true)}
+            size="sm"
+            title="Trazer saldo do mês anterior"
+          >
+            <span className="hidden sm:inline">Saldo ant.</span>
+          </Button>
           <Button
             variant="secondary"
             icon={<ArrowDownToLine className="w-4 h-4" />}
@@ -305,6 +339,18 @@ export function TransactionsPage() {
         onConfirm={handleCopyPrev}
         onCancel={() => setCopyPrevOpen(false)}
         loading={copyPrevLoading}
+      />
+
+      <BringBalanceModal
+        open={balanceOpen}
+        onClose={() => { setBalanceOpen(false); setBalanceCatId('') }}
+        categories={categories}
+        catId={balanceCatId}
+        onCatChange={setBalanceCatId}
+        onConfirm={handleBringBalance}
+        loading={balanceLoading}
+        month={month}
+        year={year}
       />
 
       <GenYearModal
@@ -763,6 +809,65 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
 function getMonthYear(dateStr: string) {
   const [y, m] = dateStr.split('-').map(Number)
   return { month: m, year: y }
+}
+
+// ─── Bring Balance Modal ─────────────────────────────────────────────────────
+interface BringBalanceModalProps {
+  open: boolean
+  onClose: () => void
+  categories: { id: string; name: string }[]
+  catId: string
+  onCatChange: (id: string) => void
+  onConfirm: () => void
+  loading: boolean
+  month: number
+  year: number
+}
+
+function BringBalanceModal({ open, onClose, categories, catId, onCatChange, onConfirm, loading, month, year }: BringBalanceModalProps) {
+  const prevMonth = month === 1 ? 12 : month - 1
+  const prevYear = month === 1 ? year - 1 : year
+  const mmPrev = String(prevMonth).padStart(2, '0')
+  const mmTarget = String(month).padStart(2, '0')
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Trazer saldo do mês anterior"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
+          <Button onClick={onConfirm} loading={loading} disabled={!catId}>
+            Lançar saldo
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-700/50 p-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+          Calcula <strong>receitas pagas − despesas pagas</strong> de{' '}
+          <strong>{mmPrev}/{prevYear}</strong> e lança o resultado em{' '}
+          <strong>{mmTarget}/{year}</strong> como pago.
+          <br />
+          <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+            Saldo positivo → receita &nbsp;·&nbsp; Saldo negativo → despesa
+          </span>
+        </div>
+        <Select
+          label="Categoria do lançamento"
+          value={catId}
+          onChange={(e) => onCatChange(e.target.value)}
+        >
+          <option value="">Selecione uma categoria…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </Select>
+      </div>
+    </Modal>
+  )
 }
 
 // ─── Gen Year Modal ───────────────────────────────────────────────────────────
