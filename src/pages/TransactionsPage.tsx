@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Calendar } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -10,8 +10,14 @@ import { useTransactions } from '../hooks/useTransactions'
 import { useCategories } from '../hooks/useCategories'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
-import { createInstallmentGroup, generateFixedAccountsForMonth } from '../services/firestore'
-import type { Transaction, TransactionType, TransactionStatus, RecurrenceType } from '../types'
+import {
+  createInstallmentGroup,
+  generateFixedAccountsForMonth,
+  generateFixedAccountsForYear,
+  copyPendingFromPreviousMonth,
+  updateInstallmentCascade,
+} from '../services/firestore'
+import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, TransactionNature } from '../types'
 import { WEEK_DAY_LABELS } from '../types'
 
 export function TransactionsPage() {
@@ -28,6 +34,9 @@ export function TransactionsPage() {
   const [reopenConfirmId, setReopenConfirmId] = useState<string | null>(null)
   const [toggleLoading, setToggleLoading] = useState<string | null>(null)
   const [rotatingId, setRotatingId] = useState<string | null>(null)
+  const [genYearOpen, setGenYearOpen] = useState(false)
+  const [copyPrevLoading, setCopyPrevLoading] = useState(false)
+  const [copyPrevOpen, setCopyPrevOpen] = useState(false)
 
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
@@ -103,12 +112,37 @@ export function TransactionsPage() {
     }
   }
 
+  const handleCopyPrev = async () => {
+    if (!user) return
+    setCopyPrevLoading(true)
+    try {
+      const { copied, skipped } = await copyPendingFromPreviousMonth(user.uid, month, year)
+      toast.success(`${copied} lançamento(s) importado(s)${skipped > 0 ? `, ${skipped} ignorado(s)` : ''}`)
+      reload()
+    } catch {
+      toast.error('Erro ao importar lançamentos')
+    } finally {
+      setCopyPrevLoading(false)
+      setCopyPrevOpen(false)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+          <Button
+            variant="secondary"
+            icon={<ArrowDownToLine className="w-4 h-4" />}
+            onClick={() => setCopyPrevOpen(true)}
+            loading={copyPrevLoading}
+            size="sm"
+            title="Trazer lançamentos pendentes do mês anterior"
+          >
+            Mês ant.
+          </Button>
           <Button
             variant="secondary"
             icon={<Calendar className="w-4 h-4" />}
@@ -117,6 +151,14 @@ export function TransactionsPage() {
             size="sm"
           >
             Gerar mês
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<CalendarRange className="w-4 h-4" />}
+            onClick={() => setGenYearOpen(true)}
+            size="sm"
+          >
+            Gerar ano
           </Button>
           <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
             Lançar
@@ -253,6 +295,22 @@ export function TransactionsPage() {
         onCancel={() => setReopenConfirmId(null)}
         loading={toggleLoading === reopenConfirmId}
       />
+
+      <ConfirmDialog
+        open={copyPrevOpen}
+        title="Trazer lançamentos do mês anterior"
+        message={`Copia os lançamentos normais PENDENTES do mês anterior para ${String(month).padStart(2, '0')}/${year}. Lançamentos já existentes serão ignorados. Deseja continuar?`}
+        onConfirm={handleCopyPrev}
+        onCancel={() => setCopyPrevOpen(false)}
+        loading={copyPrevLoading}
+      />
+
+      <GenYearModal
+        open={genYearOpen}
+        onClose={() => setGenYearOpen(false)}
+        uid={user?.uid ?? ''}
+        onDone={() => { setGenYearOpen(false); reload() }}
+      />
     </div>
   )
 }
@@ -288,6 +346,10 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const [firstDate, setFirstDate] = useState('')
   const [valueMode, setValueMode] = useState<'total' | 'each'>('total')
 
+  // Nature + cascade
+  const [transactionNature, setTransactionNature] = useState<TransactionNature>('expense')
+  const [applyToFuture, setApplyToFuture] = useState(false)
+
   const resetForm = () => {
     setType('normal')
     setDescription('')
@@ -302,6 +364,8 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setValueMode('total')
     setRecurrenceType('monthly')
     setWeekDay(1)
+    setTransactionNature('expense')
+    setApplyToFuture(false)
   }
 
   // Initialize form when modal opens (only once per open event)
@@ -316,13 +380,19 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
       setLaunchDate(editItem.launchDate ?? todayISO())
       setStatus(editItem.status)
       setType(editItem.type)
+      setTransactionNature(editItem.transactionNature ?? 'expense')
+      setApplyToFuture(false)
     } else {
       resetForm()
     }
   }
   if (!open && initialized) setInitialized(false)
 
-  const selectedCat = categories.find((c) => c.id === categoryId)
+  const selectedCat = categories.find((c: any) => c.id === categoryId)
+  // Se categoria tem tipo definido (income/expense), usa automaticamente; se 'both', usa o estado
+  const effectiveNature: TransactionNature = selectedCat?.type === 'income' ? 'income'
+    : selectedCat?.type === 'expense' ? 'expense'
+    : transactionNature
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -334,9 +404,10 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     if (!user) return
 
     setLoading(true)
-    try {      // Edi\u00e7\u00e3o: atualiza o lan\u00e7amento diretamente, independente do tipo
+    try {
+      // Edição: atualiza o lançamento diretamente, independente do tipo
       if (editItem) {
-        if (type === 'normal' && !launchDate) { toast.error('Informe a data do lan\u00e7amento'); return }
+        if (type === 'normal' && !launchDate) { toast.error('Informe a data do lançamento'); return }
         const { month, year } = getMonthYear(chargeDate)
         const { updateTransaction } = await import('../services/firestore')
         await updateTransaction(user.uid, editItem.id, {
@@ -348,9 +419,16 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           month,
           year,
           status,
+          transactionNature: effectiveNature,
           ...(type === 'normal' ? { launchDate } : {}),
         })
-        toast.success('Lan\u00e7amento atualizado!')
+        // Cascata de parcelas
+        if (type === 'installment' && applyToFuture && editItem.installmentGroupId && editItem.installmentNumber) {
+          const updated = await updateInstallmentCascade(user.uid, editItem.installmentGroupId, editItem.installmentNumber, { value, description })
+          toast.success(`Lançamento atualizado! ${updated} parcela(s) pendente(s) atualizada(s).`)
+        } else {
+          toast.success('Lançamento atualizado!')
+        }
         onSaved()
         return
       }
@@ -425,6 +503,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           year,
           status,
           type: 'normal' as const,
+          transactionNature: effectiveNature,
         }
         const { addTransaction } = await import('../services/firestore')
         await addTransaction(user.uid, payload)
@@ -494,10 +573,33 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           onChange={(e) => setCategoryId(e.target.value)}
         >
           <option value="">Selecione</option>
-          {categories.map((c) => (
+          {categories.map((c: any) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </Select>
+
+        {/* Natureza — só visível quando categoria é 'both' */}
+        {selectedCat?.type === 'both' && (
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Natureza</label>
+            <div className="flex gap-2">
+              {(['expense', 'income'] as const).map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setTransactionNature(n)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                    transactionNature === n
+                      ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  {n === 'income' ? '↑ Receita' : '↓ Despesa'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {type === 'normal' && (
           <>
@@ -582,7 +684,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         {type === 'installment' && editItem && (
           <>
             <Input
-              label="Data de cobran\u00e7a"
+              label="Data de cobrança"
               type="date"
               value={chargeDate}
               onChange={(e) => setChargeDate(e.target.value)}
@@ -591,6 +693,19 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
               <option value="pending">Pendente</option>
               <option value="paid">Pago</option>
             </Select>
+            {editItem.status === 'pending' && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={applyToFuture}
+                  onChange={(e) => setApplyToFuture(e.target.checked)}
+                  className="w-4 h-4 rounded accent-indigo-600"
+                />
+                <span className="text-sm text-slate-700 dark:text-slate-300">
+                  Aplicar valor e descrição às próximas parcelas pendentes
+                </span>
+              </label>
+            )}
           </>
         )}
 
@@ -646,4 +761,65 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
 function getMonthYear(dateStr: string) {
   const [y, m] = dateStr.split('-').map(Number)
   return { month: m, year: y }
+}
+
+// ─── Gen Year Modal ───────────────────────────────────────────────────────────
+function GenYearModal({ open, onClose, uid, onDone }: { open: boolean; onClose: () => void; uid: string; onDone: () => void }) {
+  const currentYear = new Date().getFullYear()
+  const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear + i)
+  const [selected, setSelected] = useState<number[]>([currentYear])
+  const [loading, setLoading] = useState(false)
+
+  const toggle = (y: number) =>
+    setSelected((prev) => prev.includes(y) ? prev.filter((x) => x !== y) : [...prev, y])
+
+  const handleConfirm = async () => {
+    if (!uid || selected.length === 0) return
+    setLoading(true)
+    try {
+      const { created, skipped } = await generateFixedAccountsForYear(uid, selected)
+      toast.success(`${created} conta(s) gerada(s) em ${selected.length} ano(s)${skipped > 0 ? `, ${skipped} já existia(m)` : ''}`)
+      onDone()
+    } catch {
+      toast.error('Erro ao gerar contas')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Gerar contas fixas por ano"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
+          <Button onClick={handleConfirm} loading={loading} disabled={selected.length === 0}>
+            Gerar {selected.length > 0 ? `(${selected.length} ano${selected.length > 1 ? 's' : ''})` : ''}
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+        Selecione os anos. Para cada ano, os 12 meses serão gerados (respeitando a data de início de cada conta fixa).
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {yearOptions.map((y) => (
+          <button
+            key={y}
+            type="button"
+            onClick={() => toggle(y)}
+            className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+              selected.includes(y)
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            {y}
+          </button>
+        ))}
+      </div>
+    </Modal>
+  )
 }

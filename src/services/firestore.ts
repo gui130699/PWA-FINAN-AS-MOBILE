@@ -362,3 +362,194 @@ export async function deleteInstallmentGroup(uid: string, groupId: string): Prom
   batch.delete(doc(db, `users/${uid}/installmentGroups/${groupId}`))
   await batch.commit()
 }
+
+// ─── Generate for Year ──────────────────────────────────────────────────────
+/**
+ * Gera lançamentos de contas fixas para um ou mais anos completos (jan→dez).
+ */
+export async function generateFixedAccountsForYear(
+  uid: string,
+  years: number[]
+): Promise<{ created: number; skipped: number }> {
+  let totalCreated = 0
+  let totalSkipped = 0
+  for (const year of years) {
+    for (let m = 1; m <= 12; m++) {
+      const { created, skipped } = await generateFixedAccountsForMonth(uid, m, year)
+      totalCreated += created
+      totalSkipped += skipped
+    }
+  }
+  return { created: totalCreated, skipped: totalSkipped }
+}
+
+// ─── Copy pending from previous month ────────────────────────────────────────
+/**
+ * Copia lançamentos normais pendentes do mês anterior para o mês alvo.
+ * Ignora lançamentos do tipo 'fixed' e 'installment'.
+ * Evita duplicatas por (description|categoryId).
+ */
+export async function copyPendingFromPreviousMonth(
+  uid: string,
+  targetMonth: number,
+  targetYear: number
+): Promise<{ copied: number; skipped: number }> {
+  let prevMonth = targetMonth - 1
+  let prevYear = targetYear
+  if (prevMonth === 0) { prevMonth = 12; prevYear-- }
+
+  const [prevSnap, existingSnap] = await Promise.all([
+    getDocs(query(col(uid, 'transactions'), where('month', '==', prevMonth), where('year', '==', prevYear), where('status', '==', 'pending'), where('type', '==', 'normal'))),
+    getDocs(query(col(uid, 'transactions'), where('month', '==', targetMonth), where('year', '==', targetYear))),
+  ])
+
+  const existingKeys = new Set<string>()
+  for (const d of existingSnap.docs) {
+    const data = d.data()
+    existingKeys.add(`${data.description}|${data.categoryId}`)
+  }
+
+  const batch = writeBatch(db)
+  let copied = 0
+  let skipped = 0
+  const mm = String(targetMonth).padStart(2, '0')
+  const launchDate = new Date().toISOString().slice(0, 10)
+
+  for (const d of prevSnap.docs) {
+    const data = d.data()
+    const key = `${data.description}|${data.categoryId}`
+    if (existingKeys.has(key)) { skipped++; continue }
+
+    const day = data.chargeDate?.split('-')[2] ?? '01'
+    const chargeDate = `${targetYear}-${mm}-${day}`
+
+    const ref = doc(col(uid, 'transactions'))
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = data as Record<string, unknown>
+    batch.set(ref, {
+      ...rest,
+      chargeDate,
+      month: targetMonth,
+      year: targetYear,
+      launchDate,
+      status: 'pending',
+      createdAt: now(),
+      updatedAt: now(),
+    })
+    copied++
+  }
+
+  if (copied > 0) await batch.commit()
+  return { copied, skipped }
+}
+
+// ─── Bring previous month balance ─────────────────────────────────────────────
+/**
+ * Calcula o saldo do mês anterior (receitas pagas − despesas pagas),
+ * cria um lançamento "Saldo anterior (MM/AAAA)" no mês alvo e retorna o saldo.
+ * Requer categoryId e categoryName para o lançamento de saldo.
+ */
+export async function bringPreviousMonthBalance(
+  uid: string,
+  targetMonth: number,
+  targetYear: number,
+  balanceCategoryId: string,
+  balanceCategoryName: string
+): Promise<{ balance: number }> {
+  let prevMonth = targetMonth - 1
+  let prevYear = targetYear
+  if (prevMonth === 0) { prevMonth = 12; prevYear-- }
+
+  const prevSnap = await getDocs(
+    query(col(uid, 'transactions'), where('month', '==', prevMonth), where('year', '==', prevYear), where('status', '==', 'paid'))
+  )
+
+  let income = 0
+  let expense = 0
+  for (const d of prevSnap.docs) {
+    const data = d.data()
+    const nature: string = data.transactionNature ?? 'expense'
+    if (nature === 'income') income += data.value as number
+    else expense += data.value as number
+  }
+
+  const balance = income - expense
+  const mm = String(targetMonth).padStart(2, '0')
+  const prevMm = String(prevMonth).padStart(2, '0')
+  const chargeDate = `${targetYear}-${mm}-01`
+  const launchDate = new Date().toISOString().slice(0, 10)
+  const nature = balance >= 0 ? 'income' : 'expense'
+
+  await addDoc(col(uid, 'transactions'), {
+    description: `Saldo anterior (${prevMm}/${prevYear})`,
+    value: Math.abs(balance),
+    categoryId: balanceCategoryId,
+    categoryName: balanceCategoryName,
+    launchDate,
+    chargeDate,
+    month: targetMonth,
+    year: targetYear,
+    status: 'paid',
+    type: 'normal',
+    transactionNature: nature,
+    createdAt: now(),
+    updatedAt: now(),
+  })
+
+  return { balance }
+}
+
+// ─── Installment cascade update ───────────────────────────────────────────────
+/**
+ * Atualiza value e/ou description de todas as parcelas a partir de installmentNumber.
+ * Após atualizar, recalcula as estatísticas do grupo.
+ */
+export async function updateInstallmentCascade(
+  uid: string,
+  installmentGroupId: string,
+  fromInstallmentNumber: number,
+  updates: { value?: number; description?: string }
+): Promise<number> {
+  const transactions = await getInstallmentTransactions(uid, installmentGroupId)
+  const future = transactions.filter(
+    (t) => t.installmentNumber !== undefined && t.installmentNumber >= fromInstallmentNumber && t.status === 'pending'
+  )
+
+  if (future.length === 0) return 0
+
+  const batch = writeBatch(db)
+  for (const t of future) {
+    const patch: Record<string, unknown> = { updatedAt: now() }
+    if (updates.value !== undefined) patch.value = updates.value
+    if (updates.description !== undefined) {
+      // Mantém o sufixo "N/Total"
+      const suffix = ` ${t.installmentNumber}/${t.totalInstallments}`
+      const base = updates.description.replace(/\s+\d+\/\d+$/, '')
+      patch.description = `${base}${suffix}`
+    }
+    batch.update(doc(db, `users/${uid}/transactions/${t.id}`), patch)
+  }
+  await batch.commit()
+  await refreshInstallmentGroupStats(uid, installmentGroupId)
+  return future.length
+}
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+/**
+ * Busca transações entre duas datas (chargeDate >= startDate, chargeDate <= endDate).
+ */
+export async function getTransactionsByRange(
+  uid: string,
+  startDate: string,
+  endDate: string
+): Promise<Transaction[]> {
+  const snap = await getDocs(
+    query(
+      col(uid, 'transactions'),
+      where('chargeDate', '>=', startDate),
+      where('chargeDate', '<=', endDate),
+      orderBy('chargeDate')
+    )
+  )
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Transaction))
+}

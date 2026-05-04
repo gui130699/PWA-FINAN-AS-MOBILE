@@ -14,6 +14,8 @@ export interface Category {
   updatedAt: Timestamp
 }
 
+export type TransactionNature = 'expense' | 'income'
+
 export interface Transaction {
   id: string
   description: string
@@ -26,6 +28,8 @@ export interface Transaction {
   year: number
   status: TransactionStatus
   type: TransactionType
+  /** 'expense' ou 'income'. Ausente em registros antigos = depende do tipo da categoria. */
+  transactionNature?: TransactionNature
   fixedAccountId?: string
   installmentGroupId?: string
   installmentNumber?: number

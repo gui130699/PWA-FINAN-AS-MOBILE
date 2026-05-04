@@ -25,26 +25,48 @@ import { StatCard } from '../components/ui/Card'
 import { MonthSelector } from '../components/ui/MonthSelector'
 import { PageLoader } from '../components/ui/Loading'
 import { useTransactions } from '../hooks/useTransactions'
+import { useCategories } from '../hooks/useCategories'
 import { usePWAUpdate } from '../hooks/usePWAUpdate'
 import { currentMonthYear, formatCurrency, formatDate, todayISO } from '../utils/formatters'
 import { APP_VERSION, formatBuildDate } from '../lib/version'
-import type { Transaction } from '../types'
+import type { Transaction, TransactionNature } from '../types'
 
 export function DashboardPage() {
   const { month: cm, year: cy } = currentMonthYear()
   const [month, setMonth] = useState(cm)
   const [year, setYear] = useState(cy)
   const { transactions, loading } = useTransactions(month, year)
+  const { categories } = useCategories()
   const { isChecking, checkForUpdate, clearAllCaches } = usePWAUpdate()
 
+  const catTypeMap = useMemo(() => {
+    const m = new Map<string, string>()
+    categories.forEach((c) => m.set(c.id, c.type))
+    return m
+  }, [categories])
+
+  function getN(t: Transaction): TransactionNature {
+    if (t.transactionNature) return t.transactionNature
+    const ct = catTypeMap.get(t.categoryId)
+    return ct === 'income' ? 'income' : 'expense'
+  }
+
   const stats = useMemo(() => {
-    const total = transactions.reduce((s, t) => s + t.value, 0)
-    const paid = transactions.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0)
-    const pending = total - paid
-    const fixed = transactions.filter((t) => t.type === 'fixed').reduce((s, t) => s + t.value, 0)
-    const installment = transactions.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
-    return { total, paid, pending, fixed, installment }
-  }, [transactions])
+    const inc = transactions.filter((t) => getN(t) === 'income')
+    const exp = transactions.filter((t) => getN(t) === 'expense')
+    const expTotal = exp.reduce((s, t) => s + t.value, 0)
+    const expPaid = exp.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0)
+    const expPending = expTotal - expPaid
+    const incTotal = inc.reduce((s, t) => s + t.value, 0)
+    const incPaid = inc.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0)
+    const saldoAtual = incPaid - expPaid
+    const saldoPrevisto = incTotal - expTotal
+    const expFixed = exp.filter((t) => t.type === 'fixed').reduce((s, t) => s + t.value, 0)
+    const incFixed = inc.filter((t) => t.type === 'fixed').reduce((s, t) => s + t.value, 0)
+    const expInst = exp.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
+    const incInst = inc.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
+    return { expTotal, expPaid, expPending, incTotal, incPaid, saldoAtual, saldoPrevisto, expFixed, incFixed, expInst, incInst }
+  }, [transactions, catTypeMap])
 
   const alerts = useMemo(() => {
     const today = todayISO()
@@ -76,45 +98,73 @@ export function DashboardPage() {
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Stats — linha 1: 5 cards de despesa */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
         <StatCard
-          label="Total do mês"
-          value={formatCurrency(stats.total)}
+          label="Total despesas"
+          value={formatCurrency(stats.expTotal)}
           icon={<TrendingDown className="w-5 h-5" />}
           color="bg-gradient-to-br from-indigo-500 to-indigo-700"
         />
         <StatCard
-          label="Total pago"
-          value={formatCurrency(stats.paid)}
+          label="Despesas pagas"
+          value={formatCurrency(stats.expPaid)}
           icon={<CheckCircle className="w-5 h-5" />}
           color="bg-gradient-to-br from-emerald-500 to-emerald-700"
         />
         <StatCard
-          label="Pendente"
-          value={formatCurrency(stats.pending)}
+          label="Despesas pendentes"
+          value={formatCurrency(stats.expPending)}
           icon={<Clock className="w-5 h-5" />}
           color="bg-gradient-to-br from-amber-500 to-orange-600"
         />
         <StatCard
-          label="Contas fixas"
-          value={formatCurrency(stats.fixed)}
-          icon={<RefreshCw className="w-5 h-5" />}
-          color="bg-gradient-to-br from-blue-500 to-blue-700"
+          label="Entradas"
+          value={formatCurrency(stats.incPaid)}
+          icon={<CheckCircle className="w-5 h-5" />}
+          color="bg-gradient-to-br from-teal-500 to-teal-700"
+        />
+        <StatCard
+          label="Saldo atual"
+          value={formatCurrency(stats.saldoAtual)}
+          icon={<TrendingDown className="w-5 h-5" />}
+          color={stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700'}
         />
       </div>
 
-      {/* Parceladas card */}
-      {stats.installment > 0 && (
-        <div className="grid grid-cols-1">
-          <StatCard
-            label="Total parceladas"
-            value={formatCurrency(stats.installment)}
-            icon={<CreditCard className="w-5 h-5" />}
-            color="bg-gradient-to-br from-purple-500 to-purple-700"
-          />
-        </div>
-      )}
+      {/* Stats — linha 2: 5 cards detalhados */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+        <StatCard
+          label="Saldo previsto"
+          value={formatCurrency(stats.saldoPrevisto)}
+          icon={<TrendingDown className="w-5 h-5" />}
+          color={stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700'}
+        />
+        <StatCard
+          label="Despesas fixas"
+          value={formatCurrency(stats.expFixed)}
+          icon={<RefreshCw className="w-5 h-5" />}
+          color="bg-gradient-to-br from-blue-500 to-blue-700"
+        />
+        <StatCard
+          label="Entradas fixas"
+          value={formatCurrency(stats.incFixed)}
+          icon={<RefreshCw className="w-5 h-5" />}
+          color="bg-gradient-to-br from-cyan-500 to-cyan-700"
+        />
+        <StatCard
+          label="Parcelas (desp.)"
+          value={formatCurrency(stats.expInst)}
+          icon={<CreditCard className="w-5 h-5" />}
+          color="bg-gradient-to-br from-purple-500 to-purple-700"
+        />
+        <StatCard
+          label="Parcelas (rec.)"
+          value={formatCurrency(stats.incInst)}
+          icon={<CreditCard className="w-5 h-5" />}
+          color="bg-gradient-to-br from-fuchsia-500 to-fuchsia-700"
+        />
+      </div>
 
       {/* Alerts Panel */}
       {(alerts.overdue.length > 0 || alerts.dueToday.length > 0 || alerts.upcoming.length > 0) && (

@@ -11,6 +11,7 @@ import {
   TrendingDown,
   RotateCcw,
   Trash2,
+  BarChart2,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -24,6 +25,7 @@ const links = [
   { to: '/fixed', icon: RefreshCw, label: 'Contas Fixas' },
   { to: '/installments', icon: CreditCard, label: 'Parceladas' },
   { to: '/categories', icon: Tag, label: 'Categorias' },
+  { to: '/reports', icon: BarChart2, label: 'Relatórios' },
 ]
 
 export function Sidebar() {

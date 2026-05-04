@@ -10,6 +10,7 @@ import { TransactionsPage } from './pages/TransactionsPage'
 import { FixedAccountsPage } from './pages/FixedAccountsPage'
 import { InstallmentsPage } from './pages/InstallmentsPage'
 import { CategoriesPage } from './pages/CategoriesPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { SplashScreen } from './components/ui/SplashScreen'
 import { PWAUpdateBanner } from './components/ui/PWAUpdateBanner'
 import React from 'react'
@@ -37,6 +38,7 @@ function AppRoutes() {
       <Route path="/fixed" element={<PrivateRoute><FixedAccountsPage /></PrivateRoute>} />
       <Route path="/installments" element={<PrivateRoute><InstallmentsPage /></PrivateRoute>} />
       <Route path="/categories" element={<PrivateRoute><CategoriesPage /></PrivateRoute>} />
+      <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
