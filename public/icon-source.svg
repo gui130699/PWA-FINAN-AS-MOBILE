@@ -26,7 +26,7 @@
       <stop offset="100%" stop-color="rgba(255,255,255,0.00)"/>
     </linearGradient>
 
-    <!-- Sparkline: left fades in, right full white -->
+    <!-- Sparkline: right fades in, left full white -->
     <linearGradient id="lineColor" x1="118" y1="0" x2="394" y2="0" gradientUnits="userSpaceOnUse">
       <stop offset="0%"   stop-color="rgba(255,255,255,0.42)"/>
       <stop offset="100%" stop-color="rgba(255,255,255,1.00)"/>
@@ -64,16 +64,16 @@
 
   <!-- ─── Area fill under sparkline (clipped to icon) ─── -->
   <path clip-path="url(#iconBounds)"
-        d="M 118,178
-           C 158,192  198,232  240,255
-           C 282,278  330,305  394,328
+        d="M 118,328
+           C 158,314  198,274  240,251
+           C 282,228  330,201  394,178
            L 394,440 L 118,440 Z"
         fill="url(#areaFill)"/>
 
-  <!-- ─── Sparkline: smooth descending curve (expenses going down = positive) ─── -->
-  <path d="M 118,178
-           C 158,192  198,232  240,255
-           C 282,278  330,305  394,328"
+  <!-- ─── Sparkline: smooth ascending curve (growth ↑) ─── -->
+  <path d="M 118,328
+           C 158,314  198,274  240,251
+           C 282,228  330,201  394,178"
         fill="none"
         stroke="url(#lineColor)"
         stroke-width="12"
@@ -81,16 +81,16 @@
         stroke-linejoin="round"/>
 
   <!-- ─── Inflection dots ─── -->
-  <circle cx="118" cy="178" r="7.5" fill="rgba(255,255,255,0.48)"/>
-  <circle cx="240" cy="255" r="7.5" fill="rgba(255,255,255,0.62)"/>
+  <circle cx="118" cy="328" r="7.5" fill="rgba(255,255,255,0.48)"/>
+  <circle cx="240" cy="251" r="7.5" fill="rgba(255,255,255,0.62)"/>
 
-  <!-- ─── End-point glow (the "now" moment — expenses under control) ─── -->
+  <!-- ─── End-point glow (the “now” moment — growth at the top-right) ─── -->
   <!-- Outer halo -->
-  <circle cx="394" cy="328" r="28" fill="rgba(196,181,253,0.22)" filter="url(#dotGlow)"/>
+  <circle cx="394" cy="178" r="28" fill="rgba(196,181,253,0.22)" filter="url(#dotGlow)"/>
   <!-- Mid ring -->
-  <circle cx="394" cy="328" r="18" fill="rgba(255,255,255,0.30)"/>
+  <circle cx="394" cy="178" r="18" fill="rgba(255,255,255,0.30)"/>
   <!-- Core dot -->
-  <circle cx="394" cy="328" r="12" fill="white"/>
+  <circle cx="394" cy="178" r="12" fill="white"/>
 
   <!-- ─── Small horizontal "list" lines (finance / ledger accent, bottom-left) ─── -->
   <line x1="118" y1="382" x2="185" y2="382"
