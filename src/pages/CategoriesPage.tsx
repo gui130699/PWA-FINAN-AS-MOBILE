@@ -12,35 +12,31 @@ const PRESET_COLORS = [
   // Vermelhos
   '#ef4444', '#dc2626', '#b91c1c',
   // Laranjas
-  '#f97316', '#ea580c',
+  '#f97316', '#ea580c', '#c2410c',
   // Âmbares / Amarelos
-  '#f59e0b', '#eab308', '#ca8a04',
-  // Limas
-  '#84cc16', '#65a30d',
+  '#f59e0b', '#d97706', '#b45309',
+  // Limas / Verdes claros
+  '#84cc16', '#65a30d', '#4d7c0f',
   // Verdes
   '#22c55e', '#16a34a', '#15803d',
-  // Esmeraldas
-  '#10b981', '#059669',
-  // Teais
-  '#14b8a6', '#0d9488',
-  // Cianos
-  '#06b6d4', '#0891b2',
-  // Azuis claros
-  '#0ea5e9', '#0284c7',
-  // Azuis
-  '#3b82f6', '#2563eb',
-  // Índigos
-  '#6366f1', '#4f46e5',
-  // Violetas
-  '#8b5cf6', '#7c3aed', '#9333ea',
-  // Fúcsias
-  '#d946ef', '#c026d3',
-  // Rosas
-  '#ec4899', '#db2777',
-  // Roses
-  '#f43f5e', '#e11d48',
-  // Cinzas
-  '#64748b', '#475569', '#78716c', '#57534e',
+  // Esmeraldas / Teais
+  '#10b981', '#059669', '#047857',
+  '#14b8a6', '#0d9488', '#0f766e',
+  // Cianos / Azuis claros
+  '#06b6d4', '#0891b2', '#0e7490',
+  '#0ea5e9', '#0284c7', '#0369a1',
+  // Azuis / Índigos
+  '#3b82f6', '#2563eb', '#1d4ed8',
+  '#6366f1', '#4f46e5', '#4338ca',
+  // Violetas / Roxos
+  '#8b5cf6', '#7c3aed', '#6d28d9',
+  '#9333ea', '#7e22ce', '#6b21a8',
+  // Fúcsias / Rosas
+  '#d946ef', '#c026d3', '#a21caf',
+  '#ec4899', '#db2777', '#be185d',
+  // Cinzas / Neutros
+  '#64748b', '#475569', '#334155',
+  '#78716c', '#57534e', '#44403c',
 ]
 
 const TYPE_LABELS: Record<CategoryType, string> = {
@@ -222,7 +218,7 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate, used
 
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cor</label>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-6 gap-2">
             {PRESET_COLORS.map((c) => {
               const taken = usedColors.includes(c.toLowerCase())
               const selected = color.toLowerCase() === c.toLowerCase()
