@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Receipt, RefreshCw, CreditCard, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Receipt, RefreshCw, CreditCard, BarChart2, Tag } from 'lucide-react'
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Início' },
   { to: '/transactions', icon: Receipt, label: 'Lançar' },
   { to: '/fixed', icon: RefreshCw, label: 'Fixas' },
   { to: '/installments', icon: CreditCard, label: 'Parcelas' },
+  { to: '/categories', icon: Tag, label: 'Categ.' },
   { to: '/reports', icon: BarChart2, label: 'Relatórios' },
 ]
 
