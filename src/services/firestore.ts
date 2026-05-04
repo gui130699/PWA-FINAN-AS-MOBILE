@@ -74,12 +74,14 @@ export async function getFixedAccounts(uid: string): Promise<FixedAccount[]> {
 }
 
 export async function addFixedAccount(uid: string, data: Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
-  const ref = await addDoc(col(uid, 'fixedAccounts'), { ...data, createdAt: now(), updatedAt: now() })
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+  const ref = await addDoc(col(uid, 'fixedAccounts'), { ...clean, createdAt: now(), updatedAt: now() })
   return ref.id
 }
 
 export async function updateFixedAccount(uid: string, id: string, data: Partial<FixedAccount>): Promise<void> {
-  await updateDoc(doc(db, `users/${uid}/fixedAccounts/${id}`), { ...data, updatedAt: now() })
+  const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined))
+  await updateDoc(doc(db, `users/${uid}/fixedAccounts/${id}`), { ...clean, updatedAt: now() })
 }
 
 export async function deleteFixedAccount(uid: string, id: string): Promise<void> {

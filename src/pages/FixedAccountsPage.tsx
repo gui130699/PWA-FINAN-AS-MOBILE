@@ -243,7 +243,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           categoryName: selectedCat?.name ?? '',
           chargeDay: isWeekly ? 1 : day,
           recurrenceType,
-          weekDay: isWeekly ? weekDay : undefined,
+          ...(isWeekly ? { weekDay } : {}),
           ...(newStartMonth && newStartYear ? { startMonth: newStartMonth, startYear: newStartYear } : {}),
           active: editItem.active,
         }
@@ -275,7 +275,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           startYear: 0,
           active: true,
           recurrenceType,
-          weekDay: isWeekly ? weekDay : undefined,
+          ...(isWeekly ? { weekDay } : {}),
         }
         await onAdd(data)
         toast.success('Conta fixa criada')
