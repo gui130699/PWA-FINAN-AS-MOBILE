@@ -88,8 +88,10 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
     setIsDismissed(true)
   }
 
-  const showInstallUI = platform !== 'installed' && !isDismissed
   const canPrompt = hasPrompt && platform !== 'installed'
+  // iOS: sempre mostra instruções (Safari não tem API nativa)
+  // Android/Desktop: só mostra quando Chrome confirmou que pode instalar (canPrompt)
+  const showInstallUI = platform !== 'installed' && !isDismissed && (platform === 'ios' || canPrompt)
 
   return (
     <InstallPWAContext.Provider value={{ showInstallUI, canPrompt, platform, isDismissed, install, dismiss }}>
