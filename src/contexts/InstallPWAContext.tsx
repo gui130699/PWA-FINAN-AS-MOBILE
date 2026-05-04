@@ -89,9 +89,9 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
   }
 
   const canPrompt = hasPrompt && platform !== 'installed'
-  // iOS: sempre mostra instruções (Safari não tem API nativa)
-  // Android/Desktop: só mostra quando Chrome confirmou que pode instalar (canPrompt)
-  const showInstallUI = platform !== 'installed' && !isDismissed && (platform === 'ios' || canPrompt)
+  // Sempre mostra quando não instalado e não dispensado
+  // Para Android/Desktop: botão fica disabled até Chrome liberar o prompt
+  const showInstallUI = platform !== 'installed' && !isDismissed
 
   return (
     <InstallPWAContext.Provider value={{ showInstallUI, canPrompt, platform, isDismissed, install, dismiss }}>

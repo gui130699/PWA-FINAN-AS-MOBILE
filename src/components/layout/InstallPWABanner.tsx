@@ -1,9 +1,10 @@
-import { Download, X, TrendingDown, Share } from 'lucide-react'
+import { Download, X, TrendingDown, Share, Loader2 } from 'lucide-react'
 import { useInstallPWA } from '../../contexts/InstallPWAContext'
 
-function BannerContent({ onInstall, onDismiss, platform }: {
+function BannerContent({ onInstall, onDismiss, canPrompt, platform }: {
   onInstall: () => Promise<boolean>
   onDismiss: () => void
+  canPrompt: boolean
   platform: string
 }) {
   if (platform === 'ios') {
@@ -39,7 +40,6 @@ function BannerContent({ onInstall, onDismiss, platform }: {
     )
   }
 
-  // Android/Desktop: só renderiza quando canPrompt=true, então o botão SEMPRE funciona
   return (
     <div className="bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-900/30 p-4 flex items-center gap-3">
       <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -47,14 +47,19 @@ function BannerContent({ onInstall, onDismiss, platform }: {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-white font-semibold text-sm">Instalar o app</p>
-        <p className="text-indigo-200 text-xs">Acesso rápido na tela inicial</p>
+        <p className="text-indigo-200 text-xs">
+          {canPrompt ? 'Acesso rápido na tela inicial' : 'Preparando instalação...'}
+        </p>
       </div>
       <button
-        onClick={onInstall}
-        className="flex items-center gap-1.5 bg-white text-indigo-600 font-semibold text-xs px-3 py-2 rounded-xl hover:bg-indigo-50 active:scale-95 transition-all shrink-0"
+        onClick={canPrompt ? onInstall : undefined}
+        disabled={!canPrompt}
+        className="flex items-center gap-1.5 bg-white text-indigo-600 font-semibold text-xs px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:cursor-wait hover:bg-indigo-50 active:scale-95"
       >
-        <Download className="w-3.5 h-3.5" />
-        Instalar
+        {canPrompt
+          ? <><Download className="w-3.5 h-3.5" />Instalar</>
+          : <><Loader2 className="w-3.5 h-3.5 animate-spin" />Instalar</>
+        }
       </button>
       <button onClick={onDismiss} className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors shrink-0" aria-label="Fechar">
         <X className="w-4 h-4" />
@@ -64,19 +69,19 @@ function BannerContent({ onInstall, onDismiss, platform }: {
 }
 
 export function InstallPWABannerMobile() {
-  const { showInstallUI, platform, install, dismiss } = useInstallPWA()
+  const { showInstallUI, canPrompt, platform, install, dismiss } = useInstallPWA()
 
   if (!showInstallUI) return null
 
   return (
     <div className="lg:hidden fixed bottom-16 left-3 right-3 z-40">
-      <BannerContent onInstall={install} onDismiss={dismiss} platform={platform} />
+      <BannerContent onInstall={install} onDismiss={dismiss} canPrompt={canPrompt} platform={platform} />
     </div>
   )
 }
 
 export function InstallPWABannerSidebar() {
-  const { showInstallUI, platform, install, dismiss } = useInstallPWA()
+  const { showInstallUI, canPrompt, platform, install, dismiss } = useInstallPWA()
 
   if (!showInstallUI) return null
 
@@ -98,7 +103,6 @@ export function InstallPWABannerSidebar() {
     )
   }
 
-  // Android/Desktop: só chega aqui quando canPrompt=true, botão sempre funciona
   return (
     <div className="mx-3 mb-2 p-3 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800">
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -108,7 +112,9 @@ export function InstallPWABannerSidebar() {
           </div>
           <div>
             <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">Instalar o app</p>
-            <p className="text-[10px] text-indigo-500 dark:text-indigo-400">Acesso rápido na tela inicial</p>
+            <p className="text-[10px] text-indigo-500 dark:text-indigo-400">
+              {canPrompt ? 'Acesso rápido na tela inicial' : 'Preparando instalação...'}
+            </p>
           </div>
         </div>
         <button onClick={dismiss} className="p-0.5 rounded-md text-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors" aria-label="Fechar">
@@ -116,11 +122,14 @@ export function InstallPWABannerSidebar() {
         </button>
       </div>
       <button
-        onClick={install}
-        className="w-full flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-semibold py-2 rounded-lg transition-all"
+        onClick={canPrompt ? install : undefined}
+        disabled={!canPrompt}
+        className="w-full flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-semibold py-2 rounded-lg transition-all disabled:opacity-60 disabled:cursor-wait"
       >
-        <Download className="w-3.5 h-3.5" />
-        Instalar agora
+        {canPrompt
+          ? <><Download className="w-3.5 h-3.5" />Instalar agora</>
+          : <><Loader2 className="w-3.5 h-3.5 animate-spin" />Instalar agora</>
+        }
       </button>
     </div>
   )
