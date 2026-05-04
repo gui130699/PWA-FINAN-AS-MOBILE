@@ -112,6 +112,7 @@ export function DashboardPage() {
     return DEFAULT_VISIBLE
   })
   const [editMode, setEditMode] = useState(false)
+  const [cardModal, setCardModal] = useState<{ title: string; items: Transaction[] } | null>(null)
 
   const toggleCard = (id: CardId) => {
     setVisibleCards((prev) => {
@@ -119,6 +120,26 @@ export function DashboardPage() {
       localStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(next))
       return next
     })
+  }
+
+  function openCardModal(id: CardId, title: string) {
+    const inc = transactions.filter((t) => getN(t) === 'income')
+    const exp = transactions.filter((t) => getN(t) === 'expense')
+    let items: Transaction[] = []
+    switch (id) {
+      case 'exp_total':    items = exp; break
+      case 'exp_paid':     items = exp.filter((t) => t.status === 'paid'); break
+      case 'exp_pending':  items = exp.filter((t) => t.status === 'pending'); break
+      case 'exp_fixed':    items = exp.filter((t) => t.type === 'fixed'); break
+      case 'exp_inst':     items = exp.filter((t) => t.type === 'installment'); break
+      case 'inc_paid':     items = inc.filter((t) => t.status === 'paid'); break
+      case 'inc_pending':  items = inc.filter((t) => t.status === 'pending'); break
+      case 'saldo_atual':  items = transactions.filter((t) => t.status === 'paid'); break
+      case 'saldo_previsto': items = [...transactions]; break
+      case 'inc_fixed':    items = inc.filter((t) => t.type === 'fixed'); break
+      case 'inc_inst':     items = inc.filter((t) => t.type === 'installment'); break
+    }
+    setCardModal({ title, items: items.sort((a, b) => a.chargeDate.localeCompare(b.chargeDate)) })
   }
 
   const expCards = [
@@ -162,7 +183,7 @@ export function DashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {expCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
               <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
-                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} onClick={() => openCardModal(c.id, `Despesas — ${c.label}`)} />
               </div>
             ))}
           </div>
@@ -176,7 +197,7 @@ export function DashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {incCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
               <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
-                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} onClick={() => openCardModal(c.id, c.label)} />
               </div>
             ))}
           </div>
@@ -322,6 +343,49 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
+      </Modal>
+
+      {/* Card Detail Modal */}
+      <Modal
+        open={cardModal !== null}
+        onClose={() => setCardModal(null)}
+        title={cardModal?.title ?? ''}
+        size="md"
+        footer={<Button onClick={() => setCardModal(null)}>Fechar</Button>}
+      >
+        {cardModal && (
+          cardModal.items.length === 0 ? (
+            <p className="text-center text-slate-500 dark:text-slate-400 py-6">Nenhum lançamento</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {cardModal.items.length} {cardModal.items.length === 1 ? 'lançamento' : 'lançamentos'} · 
+                {formatCurrency(cardModal.items.reduce((s, t) => s + t.value, 0))}
+              </p>
+              <div className="flex flex-col max-h-[55vh] overflow-y-auto -mx-4 px-4 divide-y divide-slate-100 dark:divide-slate-700">
+                {cardModal.items.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 py-2.5">
+                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stringToColor(t.categoryName) }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.description}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{t.categoryName} · {formatDate(t.chargeDate)}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatCurrency(t.value)}</p>
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                        t.status === 'paid'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}>
+                        {t.status === 'paid' ? 'Pago' : 'Pendente'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
       </Modal>
 
       {/* Atualização do app — apenas mobile (desktop usa Sidebar) */}

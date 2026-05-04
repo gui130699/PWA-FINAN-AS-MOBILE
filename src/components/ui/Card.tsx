@@ -23,11 +23,15 @@ interface StatCardProps {
   icon: React.ReactNode
   color: string
   sub?: string
+  onClick?: () => void
 }
 
-export function StatCard({ label, value, icon, color, sub }: StatCardProps) {
+export function StatCard({ label, value, icon, color, sub, onClick }: StatCardProps) {
   return (
-    <div className={`rounded-2xl p-2.5 sm:p-3 text-white ${color} shadow-sm`}>
+    <div
+      className={`rounded-2xl p-2.5 sm:p-3 text-white ${color} shadow-sm${onClick ? ' cursor-pointer hover:opacity-90 active:scale-95 transition-all select-none' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-start justify-between gap-1 mb-1 sm:mb-1.5">
         <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-tight">{label}</span>
         <div className="p-1 sm:p-1.5 bg-white/20 rounded-lg shrink-0 mt-0.5">{icon}</div>
