@@ -27,13 +27,13 @@ interface StatCardProps {
 
 export function StatCard({ label, value, icon, color, sub }: StatCardProps) {
   return (
-    <div className={`rounded-2xl p-3 sm:p-4 text-white ${color} shadow-sm`}>
-      <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-        <span className="text-xs sm:text-sm font-medium opacity-90 leading-tight">{label}</span>
-        <div className="p-1.5 sm:p-2 bg-white/20 rounded-xl shrink-0">{icon}</div>
+    <div className={`rounded-2xl p-2.5 sm:p-3 text-white ${color} shadow-sm`}>
+      <div className="flex items-start justify-between gap-1 mb-1 sm:mb-1.5">
+        <span className="text-[10px] sm:text-xs font-medium opacity-90 leading-tight">{label}</span>
+        <div className="p-1 sm:p-1.5 bg-white/20 rounded-lg shrink-0 mt-0.5">{icon}</div>
       </div>
-      <p className="text-lg sm:text-2xl font-bold leading-tight truncate">{value}</p>
-      {sub && <p className="text-xs opacity-80 mt-1">{sub}</p>}
+      <p className="text-sm sm:text-base font-bold leading-tight truncate">{value}</p>
+      {sub && <p className="text-[10px] opacity-80 mt-0.5">{sub}</p>}
     </div>
   )
 }
