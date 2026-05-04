@@ -11,7 +11,8 @@ import { useCategories } from '../hooks/useCategories'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
 import { createInstallmentGroup, generateFixedAccountsForMonth } from '../services/firestore'
-import type { Transaction, TransactionType, TransactionStatus } from '../types'
+import type { Transaction, TransactionType, TransactionStatus, RecurrenceType } from '../types'
+import { WEEK_DAY_LABELS } from '../types'
 
 export function TransactionsPage() {
   const { month: cm, year: cy } = currentMonthYear()
@@ -190,14 +191,12 @@ export function TransactionsPage() {
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(t.value)}</p>
                 <div className="flex gap-0.5 shrink-0">
-                  {t.type === 'normal' && (
-                    <button
-                      onClick={() => { setEditItem(t); setModalOpen(true) }}
-                      className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setEditItem(t); setModalOpen(true) }}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={() => setDeleteId(t.id)}
                     className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -280,6 +279,11 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const [status, setStatus] = useState<TransactionStatus>('pending')
   const [launchDate, setLaunchDate] = useState('')
 
+  // Fixed account specific
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('monthly')
+  const [weekDay, setWeekDay] = useState<number>(1)
+  const [chargeDay, setChargeDay] = useState('1')
+
   // Installment specific
   const [installments, setInstallments] = useState('2')
   const [firstDate, setFirstDate] = useState('')
@@ -297,6 +301,9 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setInstallments('2')
     setFirstDate(todayISO())
     setValueMode('total')
+    setRecurrenceType('monthly')
+    setWeekDay(1)
+    setChargeDay('1')
   }
 
   // Initialize form when modal opens (only once per open event)
@@ -329,7 +336,26 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     if (!user) return
 
     setLoading(true)
-    try {
+    try {      // Edi\u00e7\u00e3o: atualiza o lan\u00e7amento diretamente, independente do tipo
+      if (editItem) {
+        if (type === 'normal' && !launchDate) { toast.error('Informe a data do lan\u00e7amento'); return }
+        const { month, year } = getMonthYear(chargeDate)
+        const { updateTransaction } = await import('../services/firestore')
+        await updateTransaction(user.uid, editItem.id, {
+          description,
+          value,
+          categoryId,
+          categoryName: selectedCat?.name ?? '',
+          chargeDate,
+          month,
+          year,
+          status,
+          ...(type === 'normal' ? { launchDate } : {}),
+        })
+        toast.success('Lan\u00e7amento atualizado!')
+        onSaved()
+        return
+      }
       if (type === 'normal' && !launchDate) { toast.error('Informe a data do lançamento'); return }
 
       if (type === 'installment') {
@@ -349,25 +375,45 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         })
         toast.success('Parcelamento criado!')
       } else if (type === 'fixed') {
-        if (!chargeDate) { toast.error('Informe a data da primeira cobrança'); return }
-        const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
-        const [chargeYearStr, chargeMonthStr, chargeDayStr] = chargeDate.split('-')
-        const day = parseInt(chargeDayStr)
-        const startMonth = parseInt(chargeMonthStr)
-        const startYear = parseInt(chargeYearStr)
-        await addFixedAccount(user.uid, {
-          description,
-          value,
-          categoryId,
-          categoryName: selectedCat?.name ?? '',
-          chargeDay: day,
-          startMonth,
-          startYear,
-          active: true,
-        })
-        // Gera lançamento para o mês em tela (não o mês de hoje nem o da data selecionada)
-        await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
-        toast.success('Conta fixa cadastrada!')
+        const isWeekly = recurrenceType === 'weekly'
+        if (isWeekly) {
+          // Conta semanal: não precisa de data, usa dia da semana
+          const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
+          await addFixedAccount(user.uid, {
+            description,
+            value,
+            categoryId,
+            categoryName: selectedCat?.name ?? '',
+            chargeDay: 1,
+            startMonth: defaultMonth,
+            startYear: defaultYear,
+            active: true,
+            recurrenceType: 'weekly',
+            weekDay,
+          })
+          await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
+          toast.success('Conta fixa semanal cadastrada!')
+        } else {
+          if (!chargeDate) { toast.error('Informe a data da primeira cobran\u00e7a'); return }
+          const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
+          const [chargeYearStr, chargeMonthStr, chargeDayStr] = chargeDate.split('-')
+          const day = parseInt(chargeDayStr)
+          const startMonth = parseInt(chargeMonthStr)
+          const startYear = parseInt(chargeYearStr)
+          await addFixedAccount(user.uid, {
+            description,
+            value,
+            categoryId,
+            categoryName: selectedCat?.name ?? '',
+            chargeDay: day,
+            startMonth,
+            startYear,
+            active: true,
+            recurrenceType: 'monthly',
+          })
+          await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
+          toast.success('Conta fixa cadastrada!')
+        }
       } else {
         const { month, year } = getMonthYear(chargeDate)
         const payload = {
@@ -482,16 +528,81 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           </>
         )}
 
-        {type === 'fixed' && (
-          <Input
-            label="Data da primeira cobrança"
-            type="date"
-            value={chargeDate}
-            onChange={(e) => setChargeDate(e.target.value)}
-          />
+        {type === 'fixed' && !editItem && (
+          <>
+            {/* Recorrência */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Recorrência</label>
+              <div className="flex gap-2">
+                {(['monthly', 'weekly'] as const).map((rt) => (
+                  <button
+                    key={rt}
+                    type="button"
+                    onClick={() => setRecurrenceType(rt)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      recurrenceType === rt
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {rt === 'monthly' ? 'Mensal' : 'Semanal'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {recurrenceType === 'monthly' ? (
+              <Input
+                label="Data da primeira cobrança"
+                type="date"
+                value={chargeDate}
+                onChange={(e) => setChargeDate(e.target.value)}
+              />
+            ) : (
+              <Select
+                label="Dia da semana"
+                value={String(weekDay)}
+                onChange={(e) => setWeekDay(parseInt(e.target.value))}
+              >
+                {Object.entries(WEEK_DAY_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </Select>
+            )}
+          </>
         )}
 
-        {type === 'installment' && (
+        {type === 'fixed' && editItem && (
+          <>
+            <Input
+              label="Data de cobrança"
+              type="date"
+              value={chargeDate}
+              onChange={(e) => setChargeDate(e.target.value)}
+            />
+            <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as TransactionStatus)}>
+              <option value="pending">Pendente</option>
+              <option value="paid">Pago</option>
+            </Select>
+          </>
+        )}
+
+        {type === 'installment' && editItem && (
+          <>
+            <Input
+              label="Data de cobran\u00e7a"
+              type="date"
+              value={chargeDate}
+              onChange={(e) => setChargeDate(e.target.value)}
+            />
+            <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as TransactionStatus)}>
+              <option value="pending">Pendente</option>
+              <option value="paid">Pago</option>
+            </Select>
+          </>
+        )}
+
+        {type === 'installment' && !editItem && (
           <>
             <Input
               label="Data da primeira parcela"
