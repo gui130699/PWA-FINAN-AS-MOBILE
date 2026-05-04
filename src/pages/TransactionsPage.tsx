@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -45,6 +45,17 @@ export function TransactionsPage() {
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
   const { user } = useAuth()
+
+  const catTypeMap = useMemo(() => {
+    const m = new Map<string, string>()
+    categories.forEach((c) => m.set(c.id, c.type))
+    return m
+  }, [categories])
+
+  function getTxNature(t: Transaction): TransactionNature {
+    if (t.transactionNature) return t.transactionNature
+    return catTypeMap.get(t.categoryId) === 'income' ? 'income' : 'expense'
+  }
 
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
@@ -268,6 +279,22 @@ export function TransactionsPage() {
                   </p>
                 </div>
                 <p className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(t.value)}</p>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                    t.status === 'paid'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300'
+                  }`}>
+                    {t.status === 'paid' ? 'Pago' : 'Pendente'}
+                  </span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                    getTxNature(t) === 'income'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                  }`}>
+                    {getTxNature(t) === 'income' ? 'Receita' : 'Despesa'}
+                  </span>
+                </div>
                 <div className="flex gap-0.5 shrink-0">
                   <button
                     onClick={() => { setEditItem(t); setModalOpen(true) }}
