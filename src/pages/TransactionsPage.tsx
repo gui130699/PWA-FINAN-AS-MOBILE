@@ -344,7 +344,7 @@ export function TransactionsPage() {
       <BringBalanceModal
         open={balanceOpen}
         onClose={() => { setBalanceOpen(false); setBalanceCatId('') }}
-        categories={categories}
+        categories={categories.filter((c) => c.type === 'income' || c.type === 'both')}
         catId={balanceCatId}
         onCatChange={setBalanceCatId}
         onConfirm={handleBringBalance}
