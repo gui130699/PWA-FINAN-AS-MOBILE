@@ -98,72 +98,82 @@ export function DashboardPage() {
         <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
       </div>
 
-      {/* Stats — linha 1: 5 cards de despesa */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-        <StatCard
-          label="Total despesas"
-          value={formatCurrency(stats.expTotal)}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color="bg-gradient-to-br from-indigo-500 to-indigo-700"
-        />
-        <StatCard
-          label="Despesas pagas"
-          value={formatCurrency(stats.expPaid)}
-          icon={<CheckCircle className="w-5 h-5" />}
-          color="bg-gradient-to-br from-emerald-500 to-emerald-700"
-        />
-        <StatCard
-          label="Despesas pendentes"
-          value={formatCurrency(stats.expPending)}
-          icon={<Clock className="w-5 h-5" />}
-          color="bg-gradient-to-br from-amber-500 to-orange-600"
-        />
-        <StatCard
-          label="Entradas"
-          value={formatCurrency(stats.incPaid)}
-          icon={<CheckCircle className="w-5 h-5" />}
-          color="bg-gradient-to-br from-teal-500 to-teal-700"
-        />
-        <StatCard
-          label="Saldo atual"
-          value={formatCurrency(stats.saldoAtual)}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color={stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700'}
-        />
+      {/* Stats — Despesas */}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Despesas</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <StatCard
+            label="Total"
+            value={formatCurrency(stats.expTotal)}
+            icon={<TrendingDown className="w-5 h-5" />}
+            color="bg-gradient-to-br from-indigo-500 to-indigo-700"
+          />
+          <StatCard
+            label="Pagas"
+            value={formatCurrency(stats.expPaid)}
+            icon={<CheckCircle className="w-5 h-5" />}
+            color="bg-gradient-to-br from-emerald-500 to-emerald-700"
+          />
+          <StatCard
+            label="Pendentes"
+            value={formatCurrency(stats.expPending)}
+            icon={<Clock className="w-5 h-5" />}
+            color="bg-gradient-to-br from-amber-500 to-orange-600"
+          />
+          <StatCard
+            label="Fixas"
+            value={formatCurrency(stats.expFixed)}
+            icon={<RefreshCw className="w-5 h-5" />}
+            color="bg-gradient-to-br from-blue-500 to-blue-700"
+          />
+          <div className="col-span-2 sm:col-span-1">
+            <StatCard
+              label="Parceladas"
+              value={formatCurrency(stats.expInst)}
+              icon={<CreditCard className="w-5 h-5" />}
+              color="bg-gradient-to-br from-purple-500 to-purple-700"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Stats — linha 2: 5 cards detalhados */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-        <StatCard
-          label="Saldo previsto"
-          value={formatCurrency(stats.saldoPrevisto)}
-          icon={<TrendingDown className="w-5 h-5" />}
-          color={stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700'}
-        />
-        <StatCard
-          label="Despesas fixas"
-          value={formatCurrency(stats.expFixed)}
-          icon={<RefreshCw className="w-5 h-5" />}
-          color="bg-gradient-to-br from-blue-500 to-blue-700"
-        />
-        <StatCard
-          label="Entradas fixas"
-          value={formatCurrency(stats.incFixed)}
-          icon={<RefreshCw className="w-5 h-5" />}
-          color="bg-gradient-to-br from-cyan-500 to-cyan-700"
-        />
-        <StatCard
-          label="Parcelas (desp.)"
-          value={formatCurrency(stats.expInst)}
-          icon={<CreditCard className="w-5 h-5" />}
-          color="bg-gradient-to-br from-purple-500 to-purple-700"
-        />
-        <StatCard
-          label="Parcelas (rec.)"
-          value={formatCurrency(stats.incInst)}
-          icon={<CreditCard className="w-5 h-5" />}
-          color="bg-gradient-to-br from-fuchsia-500 to-fuchsia-700"
-        />
+      {/* Stats — Receitas & Saldo */}
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Receitas &amp; Saldo</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          <StatCard
+            label="Recebidas"
+            value={formatCurrency(stats.incPaid)}
+            icon={<CheckCircle className="w-5 h-5" />}
+            color="bg-gradient-to-br from-teal-500 to-teal-700"
+          />
+          <StatCard
+            label="Saldo atual"
+            value={formatCurrency(stats.saldoAtual)}
+            icon={<TrendingDown className="w-5 h-5" />}
+            color={stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700'}
+          />
+          <StatCard
+            label="Saldo previsto"
+            value={formatCurrency(stats.saldoPrevisto)}
+            icon={<TrendingDown className="w-5 h-5" />}
+            color={stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700'}
+          />
+          <StatCard
+            label="Fixas"
+            value={formatCurrency(stats.incFixed)}
+            icon={<RefreshCw className="w-5 h-5" />}
+            color="bg-gradient-to-br from-cyan-500 to-cyan-700"
+          />
+          <div className="col-span-2 sm:col-span-1">
+            <StatCard
+              label="Parceladas"
+              value={formatCurrency(stats.incInst)}
+              icon={<CreditCard className="w-5 h-5" />}
+              color="bg-gradient-to-br from-fuchsia-500 to-fuchsia-700"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Alerts Panel */}

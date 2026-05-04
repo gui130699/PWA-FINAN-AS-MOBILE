@@ -141,7 +141,7 @@ export function TransactionsPage() {
             size="sm"
             title="Trazer lançamentos pendentes do mês anterior"
           >
-            Mês ant.
+            <span className="hidden sm:inline">Mês ant.</span>
           </Button>
           <Button
             variant="secondary"
@@ -149,16 +149,18 @@ export function TransactionsPage() {
             onClick={handleGenerate}
             loading={genLoading}
             size="sm"
+            title="Gerar mês"
           >
-            Gerar mês
+            <span className="hidden sm:inline">Gerar mês</span>
           </Button>
           <Button
             variant="secondary"
             icon={<CalendarRange className="w-4 h-4" />}
             onClick={() => setGenYearOpen(true)}
             size="sm"
+            title="Gerar ano"
           >
-            Gerar ano
+            <span className="hidden sm:inline">Gerar ano</span>
           </Button>
           <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
             Lançar
