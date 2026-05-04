@@ -63,6 +63,19 @@ export function TransactionsPage() {
     return true
   })
 
+  const txSummary = useMemo(() => {
+    const exp = transactions.filter((t) => getTxNature(t) === 'expense')
+    const inc = transactions.filter((t) => getTxNature(t) === 'income')
+    return {
+      expTotal:   exp.reduce((s, t) => s + t.value, 0),
+      expPaid:    exp.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0),
+      expPending: exp.filter((t) => t.status === 'pending').reduce((s, t) => s + t.value, 0),
+      incTotal:   inc.reduce((s, t) => s + t.value, 0),
+      incPaid:    inc.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0),
+      incPending: inc.filter((t) => t.status === 'pending').reduce((s, t) => s + t.value, 0),
+    }
+  }, [transactions, catTypeMap])
+
   const handleDelete = async () => {
     if (!deleteId) return
     setDelLoading(true)
@@ -316,18 +329,36 @@ export function TransactionsPage() {
       )}
 
       {/* Summary */}
-      {filtered.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Total', value: filtered.reduce((s, t) => s + t.value, 0), color: 'text-slate-900 dark:text-white' },
-            { label: 'Pago', value: filtered.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0), color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'Pendente', value: filtered.filter((t) => t.status === 'pending').reduce((s, t) => s + t.value, 0), color: 'text-amber-600 dark:text-amber-400' },
-          ].map((item) => (
-            <div key={item.label} className="bg-white dark:bg-slate-800 rounded-2xl p-3 text-center border border-slate-200 dark:border-slate-700">
-              <p className="text-xs text-slate-500 dark:text-slate-400">{item.label}</p>
-              <p className={`text-sm font-bold ${item.color}`}>{formatCurrency(item.value)}</p>
-            </div>
-          ))}
+      {transactions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {/* Despesas */}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Despesas</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { label: 'Total Despesas',    value: txSummary.expTotal,   bg: 'bg-indigo-50 dark:bg-indigo-900/20',  text: 'text-indigo-700 dark:text-indigo-300' },
+              { label: 'Pago Despesas',     value: txSummary.expPaid,    bg: 'bg-rose-50 dark:bg-rose-900/20',      text: 'text-rose-700 dark:text-rose-300' },
+              { label: 'Pendente Despesas', value: txSummary.expPending, bg: 'bg-amber-50 dark:bg-amber-900/20',    text: 'text-amber-700 dark:text-amber-300' },
+            ] as const).map((item) => (
+              <div key={item.label} className={`${item.bg} rounded-xl p-2.5 text-center`}>
+                <p className="text-[9px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">{item.label}</p>
+                <p className={`text-xs sm:text-sm font-bold ${item.text} leading-tight`}>{formatCurrency(item.value)}</p>
+              </div>
+            ))}
+          </div>
+          {/* Entradas */}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mt-1">Entradas</p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { label: 'Total Entradas',      value: txSummary.incTotal,   bg: 'bg-emerald-50 dark:bg-emerald-900/20',  text: 'text-emerald-700 dark:text-emerald-300' },
+              { label: 'Entradas Recebidas',  value: txSummary.incPaid,    bg: 'bg-teal-50 dark:bg-teal-900/20',        text: 'text-teal-700 dark:text-teal-300' },
+              { label: 'Entradas Pendentes',  value: txSummary.incPending, bg: 'bg-lime-50 dark:bg-lime-900/20',        text: 'text-lime-700 dark:text-lime-300' },
+            ] as const).map((item) => (
+              <div key={item.label} className={`${item.bg} rounded-xl p-2.5 text-center`}>
+                <p className="text-[9px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">{item.label}</p>
+                <p className={`text-xs sm:text-sm font-bold ${item.text} leading-tight`}>{formatCurrency(item.value)}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

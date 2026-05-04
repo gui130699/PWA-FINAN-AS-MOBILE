@@ -11,6 +11,8 @@ import {
   TrendingDown,
   CheckCircle,
   Clock,
+  RefreshCw,
+  CreditCard,
   RotateCcw,
   Trash2,
   AlertTriangle,
@@ -32,15 +34,15 @@ import { currentMonthYear, formatCurrency, formatDate, todayISO } from '../utils
 import { APP_VERSION, formatBuildDate } from '../lib/version'
 import type { Transaction, TransactionNature } from '../types'
 
-const CARD_STORAGE_KEY = 'dashboard_visible_v2'
+const CARD_STORAGE_KEY = 'dashboard_visible_v1'
 
 type CardId =
-  | 'exp_total' | 'exp_paid' | 'exp_pending'
-  | 'inc_total' | 'inc_paid' | 'inc_pending'
+  | 'exp_total' | 'exp_paid' | 'exp_pending' | 'exp_fixed' | 'exp_inst'
+  | 'inc_paid' | 'inc_pending' | 'saldo_atual' | 'saldo_previsto' | 'inc_fixed' | 'inc_inst'
 
 const DEFAULT_VISIBLE: CardId[] = [
-  'exp_total', 'exp_paid', 'exp_pending',
-  'inc_total', 'inc_paid', 'inc_pending',
+  'exp_total', 'exp_paid', 'exp_pending', 'exp_fixed', 'exp_inst',
+  'inc_paid', 'inc_pending', 'saldo_atual', 'saldo_previsto', 'inc_fixed', 'inc_inst',
 ]
 
 export function DashboardPage() {
@@ -120,15 +122,20 @@ export function DashboardPage() {
   }
 
   const expCards = [
-    { id: 'exp_total' as CardId,   label: 'Total Despesas',    value: formatCurrency(stats.expTotal),   icon: <TrendingDown className="w-4 h-4" />, color: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
-    { id: 'exp_paid' as CardId,    label: 'Pago Despesas',     value: formatCurrency(stats.expPaid),    icon: <CheckCircle className="w-4 h-4" />, color: 'bg-gradient-to-br from-rose-500 to-rose-700' },
-    { id: 'exp_pending' as CardId, label: 'Pendente Despesas', value: formatCurrency(stats.expPending), icon: <Clock className="w-4 h-4" />,        color: 'bg-gradient-to-br from-amber-500 to-orange-600' },
+    { id: 'exp_total' as CardId,   label: 'Total',      value: formatCurrency(stats.expTotal),   icon: <TrendingDown className="w-5 h-5" />, color: 'bg-gradient-to-br from-indigo-500 to-indigo-700' },
+    { id: 'exp_paid' as CardId,    label: 'Pagas',      value: formatCurrency(stats.expPaid),    icon: <CheckCircle className="w-5 h-5" />, color: 'bg-gradient-to-br from-emerald-500 to-emerald-700' },
+    { id: 'exp_pending' as CardId, label: 'Pendentes',  value: formatCurrency(stats.expPending), icon: <Clock className="w-5 h-5" />, color: 'bg-gradient-to-br from-amber-500 to-orange-600' },
+    { id: 'exp_fixed' as CardId,   label: 'Fixas',      value: formatCurrency(stats.expFixed),   icon: <RefreshCw className="w-5 h-5" />, color: 'bg-gradient-to-br from-blue-500 to-blue-700' },
+    { id: 'exp_inst' as CardId,    label: 'Parceladas', value: formatCurrency(stats.expInst),    icon: <CreditCard className="w-5 h-5" />, color: 'bg-gradient-to-br from-purple-500 to-purple-700' },
   ]
 
   const incCards = [
-    { id: 'inc_total' as CardId,   label: 'Total Entradas',    value: formatCurrency(stats.incTotal),    icon: <TrendingDown className="w-4 h-4" />, color: 'bg-gradient-to-br from-emerald-500 to-emerald-700' },
-    { id: 'inc_paid' as CardId,    label: 'Entradas Recebidas', value: formatCurrency(stats.incPaid),   icon: <CheckCircle className="w-4 h-4" />, color: 'bg-gradient-to-br from-teal-500 to-teal-700' },
-    { id: 'inc_pending' as CardId, label: 'Entradas Pendentes', value: formatCurrency(stats.incPending), icon: <Clock className="w-4 h-4" />,       color: 'bg-gradient-to-br from-lime-500 to-lime-700' },
+    { id: 'inc_paid' as CardId,       label: 'Recebidas',      value: formatCurrency(stats.incPaid),       icon: <CheckCircle className="w-5 h-5" />, color: 'bg-gradient-to-br from-teal-500 to-teal-700' },
+    { id: 'inc_pending' as CardId,    label: 'A receber',      value: formatCurrency(stats.incPending),    icon: <Clock className="w-5 h-5" />, color: 'bg-gradient-to-br from-lime-500 to-lime-700' },
+    { id: 'saldo_atual' as CardId,    label: 'Saldo atual',    value: formatCurrency(stats.saldoAtual),    icon: <TrendingDown className="w-5 h-5" />, color: stats.saldoAtual >= 0 ? 'bg-gradient-to-br from-green-500 to-green-700' : 'bg-gradient-to-br from-red-500 to-red-700' },
+    { id: 'saldo_previsto' as CardId, label: 'Saldo previsto', value: formatCurrency(stats.saldoPrevisto), icon: <TrendingDown className="w-5 h-5" />, color: stats.saldoPrevisto >= 0 ? 'bg-gradient-to-br from-sky-500 to-sky-700' : 'bg-gradient-to-br from-orange-500 to-orange-700' },
+    { id: 'inc_fixed' as CardId,      label: 'Fixas',          value: formatCurrency(stats.incFixed),      icon: <RefreshCw className="w-5 h-5" />, color: 'bg-gradient-to-br from-cyan-500 to-cyan-700' },
+    { id: 'inc_inst' as CardId,       label: 'Parceladas',     value: formatCurrency(stats.incInst),       icon: <CreditCard className="w-5 h-5" />, color: 'bg-gradient-to-br from-fuchsia-500 to-fuchsia-700' },
   ]
 
   if (loading) return <PageLoader />
@@ -152,21 +159,25 @@ export function DashboardPage() {
       {expCards.some((c) => visibleCards.includes(c.id)) && (
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Despesas</h3>
-          <div className="grid grid-cols-3 gap-2.5">
-            {expCards.filter((c) => visibleCards.includes(c.id)).map((c) => (
-              <StatCard key={c.id} label={c.label} value={c.value} icon={c.icon} color={c.color} />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {expCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
+              <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+              </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Stats — Entradas */}
+      {/* Stats — Receitas & Saldo */}
       {incCards.some((c) => visibleCards.includes(c.id)) && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Entradas</h3>
-          <div className="grid grid-cols-3 gap-2.5">
-            {incCards.filter((c) => visibleCards.includes(c.id)).map((c) => (
-              <StatCard key={c.id} label={c.label} value={c.value} icon={c.icon} color={c.color} />
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-0.5">Receitas &amp; Saldo</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+            {incCards.filter((c) => visibleCards.includes(c.id)).map((c, i, arr) => (
+              <div key={c.id} className={i === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 sm:col-span-1' : ''}>
+                <StatCard label={c.label} value={c.value} icon={c.icon} color={c.color} />
+              </div>
             ))}
           </div>
         </div>
@@ -295,7 +306,7 @@ export function DashboardPage() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Entradas</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Receitas &amp; Saldo</p>
             <div className="flex flex-col gap-1">
               {incCards.map((c) => (
                 <label key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
