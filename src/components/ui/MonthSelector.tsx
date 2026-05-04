@@ -22,7 +22,7 @@ export function MonthSelector({ month, year, onChange }: MonthSelectorProps) {
         onClick={prev}
         className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 text-lg leading-none"
       >
-        ›
+        ‹
       </button>
       <span className="font-semibold text-slate-800 dark:text-slate-200 min-w-[110px] sm:min-w-[140px] text-center capitalize text-sm sm:text-base">
         {monthName(month)} {year}
