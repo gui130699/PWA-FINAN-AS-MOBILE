@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { TrendingDown, Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { TrendingUp, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -56,7 +56,7 @@ export function LoginPage() {
         {/* Logo */}
         <div className="flex flex-col items-center mb-8 gap-3">
           <div className="w-16 h-16 rounded-3xl bg-white/20 backdrop-blur flex items-center justify-center">
-            <TrendingDown className="w-8 h-8 text-white" />
+            <TrendingUp className="w-8 h-8 text-white" />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-white">Controle Financeiro</h1>

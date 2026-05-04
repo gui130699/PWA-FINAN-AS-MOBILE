@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TrendingDown } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
 
 interface SplashScreenProps {
   ready: boolean
@@ -55,7 +55,7 @@ export function SplashScreen({ ready }: SplashScreenProps) {
             {/* Anel pulsante */}
             <div className="absolute inset-0 rounded-3xl bg-indigo-500/30 animate-ping" style={{ animationDuration: '2s' }} />
             <div className="relative w-24 h-24 rounded-3xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-2xl shadow-indigo-900/60">
-              <TrendingDown className="w-12 h-12 text-white" />
+              <TrendingUp className="w-12 h-12 text-white" />
             </div>
           </div>
         </div>
