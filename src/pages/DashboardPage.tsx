@@ -15,13 +15,18 @@ import {
   CreditCard,
   RotateCcw,
   Trash2,
+  AlertTriangle,
+  CalendarClock,
+  CalendarCheck2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { StatCard } from '../components/ui/Card'
 import { MonthSelector } from '../components/ui/MonthSelector'
 import { PageLoader } from '../components/ui/Loading'
 import { useTransactions } from '../hooks/useTransactions'
 import { usePWAUpdate } from '../hooks/usePWAUpdate'
-import { currentMonthYear, formatCurrency } from '../utils/formatters'
+import { currentMonthYear, formatCurrency, formatDate, todayISO } from '../utils/formatters'
 import { APP_VERSION, formatBuildDate } from '../lib/version'
 import type { Transaction } from '../types'
 
@@ -39,6 +44,17 @@ export function DashboardPage() {
     const fixed = transactions.filter((t) => t.type === 'fixed').reduce((s, t) => s + t.value, 0)
     const installment = transactions.filter((t) => t.type === 'installment').reduce((s, t) => s + t.value, 0)
     return { total, paid, pending, fixed, installment }
+  }, [transactions])
+
+  const alerts = useMemo(() => {
+    const today = todayISO()
+    const d7 = new Date(); d7.setDate(d7.getDate() + 7)
+    const d7iso = d7.toISOString().slice(0, 10)
+    const pending = transactions.filter((t) => t.status === 'pending')
+    const overdue = pending.filter((t) => t.chargeDate < today)
+    const dueToday = pending.filter((t) => t.chargeDate === today)
+    const upcoming = pending.filter((t) => t.chargeDate > today && t.chargeDate <= d7iso)
+    return { overdue, dueToday, upcoming }
   }, [transactions])
 
   const chartData = useMemo(() => {
@@ -97,6 +113,48 @@ export function DashboardPage() {
             icon={<CreditCard className="w-5 h-5" />}
             color="bg-gradient-to-br from-purple-500 to-purple-700"
           />
+        </div>
+      )}
+
+      {/* Alerts Panel */}
+      {(alerts.overdue.length > 0 || alerts.dueToday.length > 0 || alerts.upcoming.length > 0) && (
+        <div className="flex flex-col gap-2">
+          {alerts.overdue.length > 0 && (
+            <AlertGroup
+              icon={<AlertTriangle className="w-4 h-4" />}
+              label="Contas atrasadas"
+              count={alerts.overdue.length}
+              total={alerts.overdue.reduce((s, t) => s + t.value, 0)}
+              items={alerts.overdue}
+              colorClass="border-red-400 dark:border-red-600"
+              headerClass="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400"
+              badgeClass="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+            />
+          )}
+          {alerts.dueToday.length > 0 && (
+            <AlertGroup
+              icon={<CalendarCheck2 className="w-4 h-4" />}
+              label="Vencem hoje"
+              count={alerts.dueToday.length}
+              total={alerts.dueToday.reduce((s, t) => s + t.value, 0)}
+              items={alerts.dueToday}
+              colorClass="border-amber-400 dark:border-amber-600"
+              headerClass="bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400"
+              badgeClass="bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+            />
+          )}
+          {alerts.upcoming.length > 0 && (
+            <AlertGroup
+              icon={<CalendarClock className="w-4 h-4" />}
+              label="A vencer (próximos 7 dias)"
+              count={alerts.upcoming.length}
+              total={alerts.upcoming.reduce((s, t) => s + t.value, 0)}
+              items={alerts.upcoming}
+              colorClass="border-blue-400 dark:border-blue-600"
+              headerClass="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400"
+              badgeClass="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+            />
+          )}
         </div>
       )}
 
@@ -214,4 +272,53 @@ function stringToColor(str: string): string {
   for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
   const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316', '#eab308', '#22c55e', '#14b8a6', '#0ea5e9', '#3b82f6']
   return colors[Math.abs(hash) % colors.length]
+}
+
+interface AlertGroupProps {
+  icon: React.ReactNode
+  label: string
+  count: number
+  total: number
+  items: Transaction[]
+  colorClass: string
+  headerClass: string
+  badgeClass: string
+}
+
+function AlertGroup({ icon, label, count, total, items, colorClass, headerClass, badgeClass }: AlertGroupProps) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`rounded-2xl border-2 overflow-hidden bg-white dark:bg-slate-800 shadow-sm ${colorClass}`}>
+      <button
+        className={`w-full flex items-center gap-2 px-4 py-3 ${headerClass} transition-colors`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {icon}
+        <span className="flex-1 text-sm font-semibold text-left">{label}</span>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badgeClass}`}>
+          {count} {count === 1 ? 'conta' : 'contas'} · {formatCurrency(total)}
+        </span>
+        {open ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+      </button>
+      {open && (
+        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          {items.map((t) => (
+            <div key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+              <div
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: stringToColor(t.categoryName) }}
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{t.description}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t.categoryName} · {formatDate(t.chargeDate)}</p>
+              </div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 shrink-0">
+                {formatCurrency(t.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
