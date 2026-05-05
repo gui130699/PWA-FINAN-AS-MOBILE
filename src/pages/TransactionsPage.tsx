@@ -516,7 +516,9 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     } else {
       resetForm()
     }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps = async (e: React.FormEvent) => {
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!description.trim()) { toast.error('Informe a descrição'); return }
     const value = parseCurrencyInput(valueStr)

@@ -167,7 +167,7 @@ interface CategoryModalProps {
   onClose: () => void
   onSaved: () => void
   editItem: Category | null
-  onAdd: (data: Omit<Category, 'id'>) => Promise<void>
+  onAdd: (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
   onUpdate: (id: string, data: Partial<Omit<Category, 'id'>>) => Promise<void>
   usedColors: string[]
 }
