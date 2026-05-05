@@ -226,9 +226,14 @@ export function TransactionsPage() {
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
-        <div className="flex gap-1.5 shrink-0 flex-wrap justify-end">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
+          <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
+            Lançar
+          </Button>
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
           <Button
             variant="secondary"
             icon={<Banknote className="w-4 h-4" />}
@@ -266,9 +271,6 @@ export function TransactionsPage() {
             title="Gerar ano"
           >
             Gerar ano
-          </Button>
-          <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
-            Lançar
           </Button>
         </div>
       </div>
