@@ -236,7 +236,7 @@ export function TransactionsPage() {
             size="sm"
             title="Trazer saldo do mês anterior"
           >
-            <span className="hidden sm:inline">Saldo ant.</span>
+            Saldo ant.
           </Button>
           <Button
             variant="secondary"
@@ -246,7 +246,7 @@ export function TransactionsPage() {
             size="sm"
             title="Trazer lançamentos pendentes do mês anterior"
           >
-            <span className="hidden sm:inline">Mês ant.</span>
+            Mês ant.
           </Button>
           <Button
             variant="secondary"
@@ -256,7 +256,7 @@ export function TransactionsPage() {
             size="sm"
             title="Gerar mês"
           >
-            <span className="hidden sm:inline">Gerar mês</span>
+            Gerar mês
           </Button>
           <Button
             variant="secondary"
@@ -265,7 +265,7 @@ export function TransactionsPage() {
             size="sm"
             title="Gerar ano"
           >
-            <span className="hidden sm:inline">Gerar ano</span>
+            Gerar ano
           </Button>
           <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
             Lançar
