@@ -656,3 +656,55 @@ export async function getTransactionsByRange(
   )
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Transaction))
 }
+
+// ─── Bulk delete future fixed transactions ────────────────────────────────────
+/**
+ * Exclui lançamentos PENDENTES de uma conta fixa a partir de uma data (inclusive).
+ * Lançamentos pagos não são excluídos.
+ */
+export async function deleteFutureFixedTransactions(
+  uid: string,
+  fixedAccountId: string,
+  fromChargeDate: string
+): Promise<{ deleted: number }> {
+  const snap = await getDocs(
+    query(col(uid, 'transactions'), where('fixedAccountId', '==', fixedAccountId))
+  )
+  const toDelete = snap.docs.filter((d) => {
+    const data = d.data()
+    return data.status === 'pending' && data.chargeDate >= fromChargeDate
+  })
+  if (toDelete.length === 0) return { deleted: 0 }
+  const ops: Array<(b: WriteBatch) => void> = toDelete.map(
+    (d) => (b) => b.delete(doc(db, `users/${uid}/transactions/${d.id}`))
+  )
+  await commitBatchInChunks(ops)
+  return { deleted: toDelete.length }
+}
+
+// ─── Bulk delete future installment transactions ──────────────────────────────
+/**
+ * Exclui parcelas PENDENTES de um grupo parcelado a partir de uma data (inclusive).
+ * Parcelas pagas não são excluídas. Recalcula estatísticas do grupo após.
+ */
+export async function deleteFutureInstallmentTransactions(
+  uid: string,
+  installmentGroupId: string,
+  fromChargeDate: string
+): Promise<{ deleted: number }> {
+  const snap = await getDocs(
+    query(col(uid, 'transactions'), where('installmentGroupId', '==', installmentGroupId))
+  )
+  const toDelete = snap.docs.filter((d) => {
+    const data = d.data()
+    return data.status === 'pending' && data.chargeDate >= fromChargeDate
+  })
+  if (toDelete.length === 0) return { deleted: 0 }
+  const ops: Array<(b: WriteBatch) => void> = toDelete.map(
+    (d) => (b) => b.delete(doc(db, `users/${uid}/transactions/${d.id}`))
+  )
+  await commitBatchInChunks(ops)
+  await refreshInstallmentGroupStats(uid, installmentGroupId)
+  return { deleted: toDelete.length }
+}
+

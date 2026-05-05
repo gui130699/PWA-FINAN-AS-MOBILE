@@ -1,13 +1,16 @@
 import { useState, useMemo } from 'react'
-import { FileText } from 'lucide-react'
+import { FileText, FileSpreadsheet, Download } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { PageLoader } from '../components/ui/Loading'
 import { useAuth } from '../contexts/AuthContext'
 import { useCategories } from '../hooks/useCategories'
-import { formatCurrency, currentMonthYear } from '../utils/formatters'
+import { formatCurrency, formatDate, currentMonthYear } from '../utils/formatters'
 import { getTransactionsByRange } from '../services/firestore'
+import { toast } from '../components/ui/Toast'
 import type { Transaction, TransactionNature } from '../types'
+import type { ExcelRowDetalhado, ExcelRowResumido } from '../utils/exportExcel'
+import type { PdfRowDetalhado, PdfRowResumido } from '../utils/exportPdf'
 
 function getNature(t: Transaction, catTypeMap: Map<string, string>): TransactionNature {
   if (t.transactionNature) return t.transactionNature
@@ -87,6 +90,81 @@ export function ReportsPage() {
     }
   }, [transactions, catTypeMap])
 
+  const handleExportExcel = async () => {
+    if (transactions.length === 0) { toast.error('Não há dados para exportar.'); return }
+    const { exportDetalhadoToExcel, exportResumidoToExcel } = await import('../utils/exportExcel')
+    const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
+    const filename = `relatorio-financeiro-${today}.xlsx`
+    if (viewMode === 'detalhado') {
+      const rows: ExcelRowDetalhado[] = transactions.map((t) => ({
+        'Data Vencimento': formatDate(t.chargeDate),
+        'Data Lançamento': formatDate(t.launchDate ?? ''),
+        'Descrição': t.description,
+        'Categoria': t.categoryName,
+        'Tipo': getNature(t, catTypeMap) === 'income' ? 'Receita' : 'Despesa',
+        'Status': t.status === 'paid' ? 'Pago' : 'Pendente',
+        'Tipo Lançamento': t.type === 'normal' ? 'Normal' : t.type === 'fixed' ? 'Fixa' : 'Parcelada',
+        'Valor (R$)': formatCurrency(t.value),
+      }))
+      exportDetalhadoToExcel(rows, filename)
+    } else {
+      const rows: ExcelRowResumido[] = grouped.map(([key, txs]) => {
+        const [year, month] = key.split('-')
+        let incTotal = 0, incPaid = 0, expTotal = 0, expPaid = 0
+        for (const t of txs) {
+          const n = getNature(t, catTypeMap)
+          if (n === 'income') { incTotal += t.value; if (t.status === 'paid') incPaid += t.value }
+          else { expTotal += t.value; if (t.status === 'paid') expPaid += t.value }
+        }
+        return {
+          'Mês/Ano': `${month}/${year}`,
+          'Total Receitas': formatCurrency(incTotal),
+          'Total Despesas': formatCurrency(expTotal),
+          'Saldo': formatCurrency(incTotal - expTotal),
+          'Total Pago/Recebido': formatCurrency(incPaid + expPaid),
+          'Total Pendente': formatCurrency((incTotal - incPaid) + (expTotal - expPaid)),
+        }
+      })
+      exportResumidoToExcel(rows, filename)
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (transactions.length === 0) { toast.error('Não há dados para exportar.'); return }
+    const { exportDetalhadoToPdf, exportResumidoToPdf } = await import('../utils/exportPdf')
+    const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
+    const filename = `relatorio-financeiro-${today}.pdf`
+    if (viewMode === 'detalhado') {
+      const rows: PdfRowDetalhado[] = transactions.map((t) => ({
+        chargeDate: t.chargeDate,
+        launchDate: t.launchDate ?? '',
+        description: t.description,
+        categoryName: t.categoryName,
+        nature: getNature(t, catTypeMap) === 'income' ? 'Receita' : 'Despesa',
+        status: t.status === 'paid' ? 'Pago' : 'Pendente',
+        type: t.type === 'normal' ? 'Normal' : t.type === 'fixed' ? 'Fixa' : 'Parcelada',
+        value: t.value,
+      }))
+      exportDetalhadoToPdf(rows, startDate, endDate, filename)
+    } else {
+      const rows: PdfRowResumido[] = grouped.map(([key, txs]) => {
+        const [year, month] = key.split('-')
+        let incTotal = 0, incPaid = 0, expTotal = 0, expPaid = 0
+        for (const t of txs) {
+          const n = getNature(t, catTypeMap)
+          if (n === 'income') { incTotal += t.value; if (t.status === 'paid') incPaid += t.value }
+          else { expTotal += t.value; if (t.status === 'paid') expPaid += t.value }
+        }
+        return {
+          period: `${month}/${year}`,
+          incTotal, expTotal, balance: incTotal - expTotal,
+          paid: incPaid + expPaid, pending: (incTotal - incPaid) + (expTotal - expPaid),
+        }
+      })
+      exportResumidoToPdf(rows, startDate, endDate, filename)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
@@ -129,6 +207,26 @@ export function ReportsPage() {
           </div>
           <Button onClick={handleSearch} loading={loading} className="flex-1">
             Buscar
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<FileSpreadsheet className="w-4 h-4" />}
+            onClick={handleExportExcel}
+            size="sm"
+            disabled={!searched || transactions.length === 0}
+            title="Exportar Excel"
+          >
+            Excel
+          </Button>
+          <Button
+            variant="secondary"
+            icon={<Download className="w-4 h-4" />}
+            onClick={handleExportPdf}
+            size="sm"
+            disabled={!searched || transactions.length === 0}
+            title="Exportar PDF"
+          >
+            PDF
           </Button>
         </div>
       </div>

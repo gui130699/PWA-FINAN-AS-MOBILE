@@ -22,6 +22,8 @@ import {
 import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, TransactionNature } from '../types'
 import { WEEK_DAY_LABELS } from '../types'
 
+type NatureFilter = 'all' | 'expense' | 'income'
+
 type SortOption =
   | 'chargeDate_asc'
   | 'chargeDate_desc'
@@ -76,8 +78,11 @@ export function TransactionsPage() {
   const [year, setYear] = useState(cy)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'paid'>('all')
   const [filterCat, setFilterCat] = useState('')
+  const [filterNature, setFilterNature] = useState<NatureFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null)
+  const [delFutureLoading, setDelFutureLoading] = useState(false)
   const [editItem, setEditItem] = useState<Transaction | null>(null)
   const [delLoading, setDelLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
@@ -117,6 +122,7 @@ export function TransactionsPage() {
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
     if (filterCat && t.categoryId !== filterCat) return false
+    if (filterNature !== 'all' && getTxNature(t) !== filterNature) return false
     return true
   })
 
@@ -146,6 +152,38 @@ export function TransactionsPage() {
     } finally {
       setDelLoading(false)
       setDeleteId(null)
+      setDeleteTarget(null)
+    }
+  }
+
+  const handleDeleteFutures = async () => {
+    if (!deleteTarget || !user) return
+    setDelFutureLoading(true)
+    try {
+      const { deleteFutureFixedTransactions, deleteFutureInstallmentTransactions } = await import('../services/firestore')
+      if (deleteTarget.type === 'fixed' && deleteTarget.fixedAccountId) {
+        const { deleted } = await deleteFutureFixedTransactions(user.uid, deleteTarget.fixedAccountId, deleteTarget.chargeDate)
+        if (deleted === 0) toast.info('Nenhum lançamento pendente futuro encontrado.')
+        else toast.success(`${deleted} lançamento(s) pendente(s) excluído(s). Pagos não foram excluídos.`)
+      } else if (deleteTarget.type === 'installment' && deleteTarget.installmentGroupId) {
+        const { deleted } = await deleteFutureInstallmentTransactions(user.uid, deleteTarget.installmentGroupId, deleteTarget.chargeDate)
+        if (deleted === 0) toast.info('Nenhuma parcela pendente futura encontrada.')
+        else toast.success(`${deleted} parcela(s) pendente(s) excluída(s). Pagas e anteriores não foram excluídas.`)
+      }
+      reload()
+    } catch {
+      toast.error('Erro ao excluir lançamentos futuros')
+    } finally {
+      setDelFutureLoading(false)
+      setDeleteTarget(null)
+    }
+  }
+
+  function requestDelete(t: Transaction) {
+    if (t.type === 'normal') {
+      setDeleteId(t.id)
+    } else {
+      setDeleteTarget(t)
     }
   }
 
@@ -307,6 +345,19 @@ export function TransactionsPage() {
               {s === 'all' ? 'Todos' : s === 'pending' ? 'Pendentes' : 'Pagos'}
             </button>
           ))}
+          {(['all', 'expense', 'income'] as const).map((n) => (
+            <button
+              key={n}
+              onClick={() => setFilterNature(n)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                filterNature === n
+                  ? n === 'income' ? 'bg-emerald-600 text-white' : n === 'expense' ? 'bg-red-500 text-white' : 'bg-slate-500 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              {n === 'all' ? 'Todos tipos' : n === 'expense' ? '↓ Despesas' : '↑ Receitas'}
+            </button>
+          ))}
           <select
             value={filterCat}
             onChange={(e) => setFilterCat(e.target.value)}
@@ -414,7 +465,7 @@ export function TransactionsPage() {
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setDeleteId(t.id)}
+                    onClick={() => requestDelete(t)}
                     className="p-1.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -487,6 +538,52 @@ export function TransactionsPage() {
         onCancel={() => setReopenConfirmId(null)}
         loading={toggleLoading === reopenConfirmId}
       />
+
+      {/* Modal especial para exclusão de fixas/parceladas */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title={deleteTarget?.type === 'fixed' ? 'Excluir conta fixa' : 'Excluir parcela'}
+        footer={
+          <Button variant="secondary" onClick={() => setDeleteTarget(null)}>
+            Cancelar
+          </Button>
+        }
+        size="sm"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            {deleteTarget?.type === 'fixed'
+              ? 'Este lançamento faz parte de uma conta fixa. O que deseja excluir?'
+              : 'Este lançamento faz parte de uma compra parcelada. O que deseja excluir?'}
+          </p>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              if (!deleteTarget) return
+              setDelLoading(true)
+              try {
+                await remove(deleteTarget.id)
+                toast.success('Lançamento excluído')
+                reload()
+              } catch { toast.error('Erro ao excluir') }
+              finally { setDelLoading(false); setDeleteTarget(null) }
+            }}
+            loading={delLoading}
+          >
+            Excluir apenas este lançamento
+          </Button>
+          <Button
+            variant="danger"
+            onClick={handleDeleteFutures}
+            loading={delFutureLoading}
+          >
+            {deleteTarget?.type === 'fixed'
+              ? 'Excluir este e todos os pendentes futuros'
+              : 'Excluir esta e todas as parcelas pendentes futuras'}
+          </Button>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={copyPrevOpen}
