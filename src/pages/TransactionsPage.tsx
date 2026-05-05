@@ -274,34 +274,36 @@ export function TransactionsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {(['all', 'pending', 'paid'] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(s)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              filterStatus === s
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-            }`}
-          >
-            {s === 'all' ? 'Todos' : s === 'pending' ? 'Pendentes' : 'Pagos'}
-          </button>
-        ))}
-        <select
-          value={filterCat}
-          onChange={(e) => setFilterCat(e.target.value)}
-          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Todas categorias</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {(['all', 'pending', 'paid'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                filterStatus === s
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              {s === 'all' ? 'Todos' : s === 'pending' ? 'Pendentes' : 'Pagos'}
+            </button>
           ))}
-        </select>
+          <select
+            value={filterCat}
+            onChange={(e) => setFilterCat(e.target.value)}
+            className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">Todas categorias</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortOption)}
-          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          className="w-full px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="chargeDate_asc">Vencimento: mais próximo</option>
           <option value="chargeDate_desc">Vencimento: mais distante</option>
