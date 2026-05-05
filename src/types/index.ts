@@ -32,6 +32,11 @@ export interface Transaction {
   transactionNature?: TransactionNature
   /** Tag de sistema para identificar lançamentos especiais (ex: 'previous_balance'). */
   systemTag?: string
+  /**
+   * @internal Metadado de UI: status de sincronização offline.
+   * Não é armazenado no Firestore.
+   */
+  _syncStatus?: 'synced' | 'pending' | 'syncing' | 'error'
   fixedAccountId?: string
   installmentGroupId?: string
   installmentNumber?: number

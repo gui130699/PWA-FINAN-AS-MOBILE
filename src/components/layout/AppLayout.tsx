@@ -3,17 +3,22 @@ import { Sidebar } from './Sidebar'
 import { BottomNav } from './BottomNav'
 import { TopBar } from './TopBar'
 import { InstallPWABannerMobile } from './InstallPWABanner'
+import { SyncStatusBanner } from '../ui/SyncStatusBanner'
+import { useAutoSync } from '../../hooks/useAutoSync'
 
 interface AppLayoutProps {
   children: React.ReactNode
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const { isOnline, pendingCount, isSyncing } = useAutoSync()
+
   return (
     <div className="min-h-dvh bg-slate-50 dark:bg-slate-950">
       <Sidebar />
       <div className="lg:ml-64 flex flex-col min-h-dvh">
         <TopBar />
+        <SyncStatusBanner isOnline={isOnline} pendingCount={pendingCount} isSyncing={isSyncing} />
         <main className="flex-1 px-3 py-3 pb-24 lg:pb-6 lg:px-6 max-w-5xl w-full mx-auto">
           {children}
         </main>

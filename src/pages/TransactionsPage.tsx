@@ -316,6 +316,17 @@ export function TransactionsPage() {
                   }`}>
                     {getTxNature(t) === 'income' ? 'Receita' : 'Despesa'}
                   </span>
+                  {t._syncStatus && t._syncStatus !== 'synced' && (
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none ${
+                      t._syncStatus === 'pending'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                        : t._syncStatus === 'syncing'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                    }`}>
+                      {t._syncStatus === 'pending' ? '⟳ Offline' : t._syncStatus === 'syncing' ? '↑ Sync' : '! Erro'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-0.5 shrink-0">
                   <button
