@@ -22,6 +22,38 @@ import {
 import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, TransactionNature } from '../types'
 import { WEEK_DAY_LABELS } from '../types'
 
+type SortOption =
+  | 'chargeDate_asc'
+  | 'chargeDate_desc'
+  | 'launchDate_desc'
+  | 'launchDate_asc'
+  | 'description_asc'
+  | 'description_desc'
+  | 'category_asc'
+  | 'category_desc'
+  | 'value_asc'
+  | 'value_desc'
+
+function sortTransactions(list: Transaction[], sortBy: SortOption): Transaction[] {
+  const sorted = [...list]
+  sorted.sort((a, b) => {
+    switch (sortBy) {
+      case 'chargeDate_asc':   return a.chargeDate.localeCompare(b.chargeDate)
+      case 'chargeDate_desc':  return b.chargeDate.localeCompare(a.chargeDate)
+      case 'launchDate_desc':  return b.launchDate.localeCompare(a.launchDate)
+      case 'launchDate_asc':   return a.launchDate.localeCompare(b.launchDate)
+      case 'description_asc':  return a.description.localeCompare(b.description, 'pt-BR', { sensitivity: 'base' })
+      case 'description_desc': return b.description.localeCompare(a.description, 'pt-BR', { sensitivity: 'base' })
+      case 'category_asc':     return a.categoryName.localeCompare(b.categoryName, 'pt-BR', { sensitivity: 'base' })
+      case 'category_desc':    return b.categoryName.localeCompare(a.categoryName, 'pt-BR', { sensitivity: 'base' })
+      case 'value_asc':        return a.value - b.value
+      case 'value_desc':       return b.value - a.value
+      default:                 return 0
+    }
+  })
+  return sorted
+}
+
 export function TransactionsPage() {
   const { month: cm, year: cy } = currentMonthYear()
   const [month, setMonth] = useState(cm)
@@ -42,6 +74,14 @@ export function TransactionsPage() {
   const [balanceOpen, setBalanceOpen] = useState(false)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [balanceCatId, setBalanceCatId] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>(() => {
+    const saved = localStorage.getItem('transactions-sort-by') as SortOption | null
+    return saved ?? 'chargeDate_asc'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('transactions-sort-by', sortBy)
+  }, [sortBy])
 
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
@@ -63,6 +103,8 @@ export function TransactionsPage() {
     if (filterCat && t.categoryId !== filterCat) return false
     return true
   })
+
+  const ordered = sortTransactions(filtered, sortBy)
 
   const txSummary = useMemo(() => {
     const exp = transactions.filter((t) => getTxNature(t) === 'expense')
@@ -256,6 +298,22 @@ export function TransactionsPage() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+          className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="chargeDate_asc">Vencimento: mais próximo</option>
+          <option value="chargeDate_desc">Vencimento: mais distante</option>
+          <option value="launchDate_desc">Lançamento: mais recente</option>
+          <option value="launchDate_asc">Lançamento: mais antigo</option>
+          <option value="description_asc">Nome: A-Z</option>
+          <option value="description_desc">Nome: Z-A</option>
+          <option value="category_asc">Categoria: A-Z</option>
+          <option value="category_desc">Categoria: Z-A</option>
+          <option value="value_asc">Valor: menor para maior</option>
+          <option value="value_desc">Valor: maior para menor</option>
+        </select>
       </div>
 
       {/* List */}
@@ -270,7 +328,7 @@ export function TransactionsPage() {
       ) : (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {filtered.map((t) => (
+            {ordered.map((t) => (
               <div key={t.id} className="flex items-center gap-2 px-3 py-3">
                 <button
                   onClick={() => handleToggleStatus(t)}
