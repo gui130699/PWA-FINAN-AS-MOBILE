@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+// Script para gerar ícones PNG da carteira a partir do SVG
+import sharp from '../node_modules/sharp/lib/index.js'
+import { readFileSync, writeFileSync } from 'fs'
+
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#2E3440"/>
@@ -60,4 +64,23 @@
   <rect x="334" y="290" width="84" height="22" rx="11" fill="rgba(255,255,255,0.10)"/>
   <line x1="112" y1="396" x2="318" y2="396" stroke="rgba(0,0,0,0.13)" stroke-width="2" stroke-dasharray="8,6"/>
   <rect x="90" y="214" width="332" height="214" rx="22" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="2"/>
-</svg>
+</svg>`
+
+const buf = Buffer.from(svg)
+
+await sharp(buf).resize(512, 512).png().toFile('./public/pwa-512x512.png')
+console.log('✓ pwa-512x512.png')
+
+await sharp(buf).resize(192, 192).png().toFile('./public/pwa-192x192.png')
+console.log('✓ pwa-192x192.png')
+
+await sharp(buf).resize(180, 180).png().toFile('./public/apple-touch-icon.png')
+console.log('✓ apple-touch-icon.png')
+
+// Salvar o novo SVG como favicon.svg também
+writeFileSync('./public/favicon.svg', svg)
+console.log('✓ favicon.svg')
+
+// Salvar SVG no icon-source também
+writeFileSync('./public/icon-source.svg', svg)
+console.log('✓ icon-source.svg')
