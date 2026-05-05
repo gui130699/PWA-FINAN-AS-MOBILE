@@ -208,6 +208,8 @@ export function ReportsPage() {
           <Button onClick={handleSearch} loading={loading} className="flex-1">
             Buscar
           </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           <Button
             variant="secondary"
             icon={<FileSpreadsheet className="w-4 h-4" />}
@@ -216,7 +218,7 @@ export function ReportsPage() {
             disabled={!searched || transactions.length === 0}
             title="Exportar Excel"
           >
-            Excel
+            Exportar Excel
           </Button>
           <Button
             variant="secondary"
@@ -226,7 +228,7 @@ export function ReportsPage() {
             disabled={!searched || transactions.length === 0}
             title="Exportar PDF"
           >
-            PDF
+            Exportar PDF
           </Button>
         </div>
       </div>
