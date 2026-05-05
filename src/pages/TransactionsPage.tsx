@@ -54,6 +54,22 @@ function sortTransactions(list: Transaction[], sortBy: SortOption): Transaction[
   return sorted
 }
 
+function categoryMatchesNature(cat: { type: string }, nature: TransactionNature): boolean {
+  return cat.type === nature || cat.type === 'both'
+}
+
+function inferNatureFromEdit(
+  nature: TransactionNature | undefined,
+  categoryId: string,
+  categories: { id: string; type: string }[]
+): TransactionNature {
+  if (nature === 'income' || nature === 'expense') return nature
+  const cat = categories.find((c) => c.id === categoryId)
+  if (cat?.type === 'income') return 'income'
+  if (cat?.type === 'expense') return 'expense'
+  return 'expense'
+}
+
 export function TransactionsPage() {
   const { month: cm, year: cy } = currentMonthYear()
   const [month, setMonth] = useState(cm)
@@ -541,7 +557,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const resetForm = () => {    setType('normal')
     setDescription('')
     setValueStr('')
-    setCategoryId(categories[0]?.id ?? '')
+    setCategoryId('')
     const m = String(defaultMonth).padStart(2, '0')
     setChargeDate(`${defaultYear}-${m}-01`)
     setLaunchDate(todayISO())
@@ -556,10 +572,13 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   }
 
   const selectedCat = categories.find((c) => c.id === categoryId)
-  // Se categoria tem tipo definido (income/expense), usa automaticamente; se 'both', usa o estado
-  const effectiveNature: TransactionNature = selectedCat?.type === 'income' ? 'income'
-    : selectedCat?.type === 'expense' ? 'expense'
-    : transactionNature
+  const filteredCategories = categories.filter((c) => categoryMatchesNature(c, transactionNature))
+
+  function handleNatureChange(newNature: TransactionNature) {
+    setTransactionNature(newNature)
+    const cat = categories.find((c) => c.id === categoryId)
+    if (cat && !categoryMatchesNature(cat, newNature)) setCategoryId('')
+  }
 
   // Initialize form when modal opens
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -573,7 +592,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
       setLaunchDate(editItem.launchDate ?? todayISO())
       setStatus(editItem.status)
       setType(editItem.type)
-      setTransactionNature(editItem.transactionNature ?? 'expense')
+      setTransactionNature(inferNatureFromEdit(editItem.transactionNature, editItem.categoryId, categories))
       setApplyToFuture(false)
     } else {
       resetForm()
@@ -605,7 +624,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           month,
           year,
           status,
-          transactionNature: effectiveNature,
+          transactionNature: transactionNature,
           ...(type === 'normal' ? { launchDate } : {}),
         })
         // Cascata de parcelas
@@ -634,7 +653,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           installmentValue: installVal,
           totalInstallments: n,
           firstInstallmentDate: firstDate,
-          transactionNature: effectiveNature,
+          transactionNature: transactionNature,
         })
         toast.success('Parcelamento criado!')
       } else if (type === 'fixed') {
@@ -653,7 +672,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
             active: true,
             recurrenceType: 'weekly',
             weekDay,
-            transactionNature: effectiveNature,
+            transactionNature: transactionNature,
           })
           await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
           toast.success('Conta fixa semanal cadastrada!')
@@ -674,7 +693,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
             startYear,
             active: true,
             recurrenceType: 'monthly',
-            transactionNature: effectiveNature,
+            transactionNature: transactionNature,
           })
           await generateFixedAccountsForMonth(user.uid, defaultMonth, defaultYear)
           toast.success('Conta fixa cadastrada!')
@@ -692,7 +711,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           year,
           status,
           type: 'normal' as const,
-          transactionNature: effectiveNature,
+          transactionNature: transactionNature,
         }
         const { addTransaction } = await import('../services/firestore')
         await addTransaction(user.uid, payload)
@@ -756,39 +775,36 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           inputMode="numeric"
         />
 
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tipo do lançamento</label>
+          <div className="flex gap-2">
+            {(['expense', 'income'] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => handleNatureChange(n)}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                  transactionNature === n
+                    ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {n === 'income' ? '↑ Receita' : '↓ Despesa'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Select
           label="Categoria"
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
         >
           <option value="">Selecione</option>
-          {categories.map((c) => (
+          {filteredCategories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </Select>
-
-        {/* Natureza — só visível quando categoria é 'both' */}
-        {selectedCat?.type === 'both' && (
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Natureza</label>
-            <div className="flex gap-2">
-              {(['expense', 'income'] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setTransactionNature(n)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                    transactionNature === n
-                      ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  {n === 'income' ? '↑ Receita' : '↓ Despesa'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {type === 'normal' && (
           <>

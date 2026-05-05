@@ -181,11 +181,15 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
   const [weekDay, setWeekDay] = useState<number>(1)
   const [transactionNature, setTransactionNature] = useState<TransactionNature>('expense')
 
-  const selectedCatModal = categories.find((c) => c.id === categoryId)
-  const effectiveNature: TransactionNature =
-    selectedCatModal?.type === 'income' ? 'income'
-    : selectedCatModal?.type === 'expense' ? 'expense'
-    : transactionNature
+  const filteredCategoriesModal = categories.filter((c) =>
+    c.type === transactionNature || c.type === 'both'
+  )
+
+  function handleNatureChangeModal(newNature: TransactionNature) {
+    setTransactionNature(newNature)
+    const cat = categories.find((c) => c.id === categoryId)
+    if (cat && cat.type !== newNature && cat.type !== 'both') setCategoryId('')
+  }
 
   // Initialize form when modal opens
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -199,7 +203,14 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
       const rt: RecurrenceType = editItem.recurrenceType ?? 'monthly'
       setRecurrenceType(rt)
       setWeekDay(editItem.weekDay ?? 1)
-      setTransactionNature(editItem.transactionNature ?? 'expense')
+      setTransactionNature(editItem.transactionNature ??
+        (() => {
+          const cat = categories.find((c) => c.id === editItem.categoryId)
+          if (cat?.type === 'income') return 'income' as const
+          if (cat?.type === 'expense') return 'expense' as const
+          return 'expense' as const
+        })()
+      )
       if (editItem.startYear && editItem.startMonth) {
         const m = String(editItem.startMonth).padStart(2, '0')
         const d = String(editItem.chargeDay).padStart(2, '0')
@@ -257,7 +268,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           chargeDay: isWeekly ? 1 : day,
           recurrenceType,
           ...(isWeekly ? { weekDay } : {}),
-          transactionNature: effectiveNature,
+          transactionNature: transactionNature,
           ...(newStartMonth && newStartYear ? { startMonth: newStartMonth, startYear: newStartYear } : {}),
           active: editItem.active,
         }
@@ -301,7 +312,7 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           startYear,
           active: true,
           recurrenceType,
-          transactionNature: effectiveNature,
+          transactionNature: transactionNature,
           ...(isWeekly ? { weekDay } : {}),
         }
         await onAdd(data)
@@ -341,33 +352,30 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           inputMode="numeric"
           placeholder="0,00"
         />
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tipo do lançamento</label>
+          <div className="flex gap-2">
+            {(['expense', 'income'] as const).map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => handleNatureChangeModal(n)}
+                className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                  transactionNature === n
+                    ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {n === 'income' ? '↑ Receita' : '↓ Despesa'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <Select label="Categoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">Selecione</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {filteredCategoriesModal.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
-
-        {/* Natureza — só visível quando categoria é 'both' */}
-        {selectedCatModal?.type === 'both' && (
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Natureza</label>
-            <div className="flex gap-2">
-              {(['expense', 'income'] as const).map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setTransactionNature(n)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                    transactionNature === n
-                      ? n === 'income' ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
-                  }`}
-                >
-                  {n === 'income' ? '↑ Receita' : '↓ Despesa'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Recorrência */}
         <div className="flex flex-col gap-1">
