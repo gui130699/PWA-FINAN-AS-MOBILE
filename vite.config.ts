@@ -45,13 +45,6 @@ export default defineConfig({
         navigateFallback: 'index.html',
         // Não aplicar fallback a rotas de API ou arquivos com extensão
         navigateFallbackDenylist: [/^\/__/, /\/[^/?]+\.[^/]+$/],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/firestore\.googleapis\.com/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'firebase-cache' },
-          },
-        ],
       },
     }),
   ],

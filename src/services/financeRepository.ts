@@ -106,6 +106,24 @@ async function findLocal(uid: string, id: string): Promise<LocalTransaction | un
   return getTransactionByServerId(uid, id)
 }
 
+/**
+ * Salva (ou atualiza) uma transação vinda do servidor no cache local.
+ * Se já existir registro com o mesmo serverId, preserva o localId original
+ * e apenas sobrescreve se não houver pendências locais.
+ */
+async function upsertTransactionFromServer(uid: string, t: Transaction): Promise<void> {
+  const existing = await getTransactionByServerId(uid, t.id)
+  if (existing) {
+    if (existing.syncStatus !== 'pending') {
+      // Atualiza preservando o localId original para não gerar duplicata
+      await putTransaction({ ...txToLocal(t, uid), localId: existing.localId })
+    }
+    // Se pending, mantém versão local (tem edições que ainda não foram ao servidor)
+  } else {
+    await putTransaction(txToLocal(t, uid))
+  }
+}
+
 function partialToLocal(data: Partial<Transaction>): Partial<LocalTransaction> {
   const r: Partial<LocalTransaction> = {}
   if (data.description !== undefined) r.description = data.description
@@ -174,15 +192,22 @@ export async function getTransactionsOfflineFirst(
   if (navigator.onLine) {
     try {
       const txs = await fsGet(uid, month, year)
-      // Atualiza cache local com dados frescos do Firestore
-      await Promise.all(txs.map((t) => putTransaction(txToLocal(t, uid))))
-      // Mescla com eventuais registros pendentes locais (criados offline)
+      // Atualiza cache local com dados frescos do Firestore (upsert evita duplicatas por serverId)
+      await Promise.all(txs.map((t) => upsertTransactionFromServer(uid, t)))
+      // Mescla com eventuais registros pendentes locais (criados offline, sem serverId)
       const locals = await getTransactionsByMonth(uid, month, year)
       const pendingOnly = locals.filter((r) => !r.serverId && r.syncStatus === 'pending')
+      // Registros com serverId mas pending (editados offline) substituem a versão do servidor
+      const pendingEdited = locals.filter((r) => r.serverId && r.syncStatus === 'pending')
       const merged: Transaction[] = [
         ...txs.map((t) => ({ ...t, _syncStatus: 'synced' as const })),
         ...pendingOnly.map(localToTx),
       ]
+      // Substituir versão do servidor pelo rascunho local para pendentes editados
+      for (const pe of pendingEdited) {
+        const idx = merged.findIndex((t) => t.id === pe.serverId)
+        if (idx >= 0) merged[idx] = localToTx(pe)
+      }
       // Deduplicar por id
       const seen = new Set<string>()
       return merged.filter((t) => {
@@ -194,8 +219,26 @@ export async function getTransactionsOfflineFirst(
       // Fallback para cache em caso de erro de rede
     }
   }
+  // Offline: lê do cache IndexedDB com deduplicação por serverId ?? localId
   const locals = await getTransactionsByMonth(uid, month, year)
-  return locals.map(localToTx)
+  const dedupMap = new Map<string, LocalTransaction>()
+  for (const r of locals) {
+    const key = r.serverId ?? r.localId
+    const existing = dedupMap.get(key)
+    if (!existing) {
+      dedupMap.set(key, r)
+    } else {
+      // Prioriza versão com alterações pendentes; em empate, usa a mais recente
+      const rIsPending = r.syncStatus !== 'synced'
+      const exIsPending = existing.syncStatus !== 'synced'
+      if (rIsPending && !exIsPending) {
+        dedupMap.set(key, r)
+      } else if (rIsPending === exIsPending && r.lastModifiedAt > existing.lastModifiedAt) {
+        dedupMap.set(key, r)
+      }
+    }
+  }
+  return Array.from(dedupMap.values()).map(localToTx)
 }
 
 /**
@@ -235,6 +278,7 @@ export async function addTransactionOfflineFirst(
     status: 'pending',
   }
   await addQueueItem(qItem)
+  window.dispatchEvent(new CustomEvent('financeQueueChanged', { detail: { uid } }))
   return localId
 }
 
@@ -303,6 +347,7 @@ export async function updateTransactionOfflineFirst(
     }
     await addQueueItem(qItem)
   }
+  window.dispatchEvent(new CustomEvent('financeQueueChanged', { detail: { uid } }))
 }
 
 /**
@@ -356,4 +401,5 @@ export async function deleteTransactionOfflineFirst(uid: string, id: string): Pr
     status: 'pending',
   }
   await addQueueItem(qItem)
+  window.dispatchEvent(new CustomEvent('financeQueueChanged', { detail: { uid } }))
 }

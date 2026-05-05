@@ -192,7 +192,7 @@ export async function updateFixedAccountStartDate(
     )
   )
 
-  const batch = writeBatch(db)
+  const ops: Array<(b: WriteBatch) => void> = []
   let removed = 0
 
   for (const d of snap.docs) {
@@ -203,12 +203,12 @@ export async function updateFixedAccountStartDate(
     const isBeforeStart =
       txYear < newStartYear || (txYear === newStartYear && txMonth < newStartMonth)
     if (isBeforeStart) {
-      batch.delete(d.ref)
+      ops.push((b) => b.delete(d.ref))
       removed++
     }
   }
 
-  if (removed > 0) await batch.commit()
+  if (removed > 0) await commitBatchInChunks(ops)
   return { removed }
 }
 
@@ -268,7 +268,7 @@ export async function generateFixedAccountsForMonth(
     }
   }
 
-  const batch = writeBatch(db)
+  const ops: Array<(b: WriteBatch) => void> = []
   let created = 0
   let skipped = 0
   const launchDate = new Date().toISOString().slice(0, 10)
@@ -286,7 +286,7 @@ export async function generateFixedAccountsForMonth(
       const chargeDate = makeDateSafe(year, month, account.chargeDay)
 
       const ref = doc(col(uid, 'transactions'))
-      batch.set(ref, {
+      ops.push((b) => b.set(ref, {
         description: account.description,
         value: account.value,
         categoryId: account.categoryId,
@@ -301,7 +301,7 @@ export async function generateFixedAccountsForMonth(
         ...(account.transactionNature ? { transactionNature: account.transactionNature } : {}),
         createdAt: now(),
         updatedAt: now(),
-      })
+      }))
       created++
     } else {
       // ── Conta semanal ──
@@ -314,7 +314,7 @@ export async function generateFixedAccountsForMonth(
           continue
         }
         const ref = doc(col(uid, 'transactions'))
-        batch.set(ref, {
+        ops.push((b) => b.set(ref, {
           description: account.description,
           value: account.value,
           categoryId: account.categoryId,
@@ -329,13 +329,13 @@ export async function generateFixedAccountsForMonth(
           ...(account.transactionNature ? { transactionNature: account.transactionNature } : {}),
           createdAt: now(),
           updatedAt: now(),
-        })
+        }))
         created++
       }
     }
   }
 
-  await batch.commit()
+  if (created > 0) await commitBatchInChunks(ops)
   return { created, skipped }
 }
 
@@ -373,12 +373,12 @@ export async function createInstallmentGroup(
     updatedAt: now(),
   })
 
-  const batch = writeBatch(db)
+  const installOps: Array<(b: WriteBatch) => void> = []
   for (let i = 0; i < data.totalInstallments; i++) {
     const chargeDate = addMonthsSafe(data.firstInstallmentDate, i)
     const { month, year } = getMonthYear(chargeDate)
     const ref = doc(col(uid, 'transactions'))
-    batch.set(ref, {
+    installOps.push((b) => b.set(ref, {
       description: `${data.description} ${i + 1}/${data.totalInstallments}`,
       value: data.installmentValue,
       categoryId: data.categoryId,
@@ -395,9 +395,9 @@ export async function createInstallmentGroup(
       ...(data.transactionNature ? { transactionNature: data.transactionNature } : {}),
       createdAt: now(),
       updatedAt: now(),
-    })
+    }))
   }
-  await batch.commit()
+  await commitBatchInChunks(installOps)
   return groupRef.id
 }
 
@@ -492,10 +492,9 @@ export async function copyPendingFromPreviousMonth(
     existingKeys.add(`${data.description}|${data.categoryId}`)
   }
 
-  const batch = writeBatch(db)
+  const copyOps: Array<(b: WriteBatch) => void> = []
   let copied = 0
   let skipped = 0
-  const mm = String(targetMonth).padStart(2, '0')
   const launchDate = new Date().toISOString().slice(0, 10)
 
   for (const d of prevSnap.docs) {
@@ -503,13 +502,13 @@ export async function copyPendingFromPreviousMonth(
     const key = `${data.description}|${data.categoryId}`
     if (existingKeys.has(key)) { skipped++; continue }
 
-    const day = data.chargeDate?.split('-')[2] ?? '01'
-    const chargeDate = `${targetYear}-${mm}-${day}`
+    const day = Number(data.chargeDate?.split('-')[2] ?? 1)
+    const chargeDate = makeDateSafe(targetYear, targetMonth, day)
 
     const ref = doc(col(uid, 'transactions'))
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: _id, createdAt: _ca, updatedAt: _ua, ...rest } = data as Record<string, unknown>
-    batch.set(ref, {
+    copyOps.push((b) => b.set(ref, {
       ...rest,
       chargeDate,
       month: targetMonth,
@@ -518,11 +517,11 @@ export async function copyPendingFromPreviousMonth(
       status: 'pending',
       createdAt: now(),
       updatedAt: now(),
-    })
+    }))
     copied++
   }
 
-  if (copied > 0) await batch.commit()
+  if (copied > 0) await commitBatchInChunks(copyOps)
   return { copied, skipped }
 }
 

@@ -152,7 +152,7 @@ export function CategoriesPage() {
       <ConfirmDialog
         open={!!deleteId}
         title="Excluir categoria"
-        message="Deseja excluir esta categoria? Os lançamentos existentes não serão afetados."
+        message="Deseja excluir esta categoria? Se ela estiver em uso em lançamentos, contas fixas ou parcelamentos, a exclusão será bloqueada para proteger seus dados."
         onConfirm={handleDelete}
         onCancel={() => setDeleteId(null)}
         loading={delLoading}

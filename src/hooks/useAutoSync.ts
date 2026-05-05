@@ -42,5 +42,18 @@ export function useAutoSync() {
     refreshCount()
   }, [refreshCount])
 
+  // Atualiza contador imediatamente quando uma ação offline enfileira item
+  useEffect(() => {
+    if (!user) return
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ uid: string }>).detail
+      if (detail?.uid === user.uid) {
+        refreshCount()
+      }
+    }
+    window.addEventListener('financeQueueChanged', handler)
+    return () => window.removeEventListener('financeQueueChanged', handler)
+  }, [user, refreshCount])
+
   return { isOnline, pendingCount, isSyncing, sync }
 }
