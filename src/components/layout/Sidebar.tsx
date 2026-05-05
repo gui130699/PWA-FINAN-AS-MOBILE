@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Trash2,
   BarChart2,
+  HelpCircle,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -26,6 +27,7 @@ const links = [
   { to: '/installments', icon: CreditCard, label: 'Parceladas' },
   { to: '/categories', icon: Tag, label: 'Categorias' },
   { to: '/reports', icon: BarChart2, label: 'Relatórios' },
+  { to: '/help', icon: HelpCircle, label: 'Ajuda' },
 ]
 
 export function Sidebar() {

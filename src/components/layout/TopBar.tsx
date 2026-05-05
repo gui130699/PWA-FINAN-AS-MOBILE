@@ -8,6 +8,8 @@ const titles: Record<string, string> = {
   '/fixed': 'Contas Fixas',
   '/installments': 'Parceladas',
   '/categories': 'Categorias',
+  '/reports': 'Relatórios',
+  '/help': 'Ajuda',
 }
 
 export function TopBar() {
