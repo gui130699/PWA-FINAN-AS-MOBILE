@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Pencil, Trash2, Tag } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -6,6 +6,9 @@ import { Modal, ConfirmDialog } from '../components/ui/Modal'
 import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useCategories } from '../hooks/useCategories'
+import { useAuth } from '../contexts/AuthContext'
+import { getCategoryUsage } from '../services/firestore'
+import { getErrorMessage } from '../utils/errorUtils'
 import type { Category, CategoryType } from '../types'
 
 const PRESET_COLORS = [
@@ -46,6 +49,7 @@ const TYPE_LABELS: Record<CategoryType, string> = {
 }
 
 export function CategoriesPage() {
+  const { user } = useAuth()
   const { categories, loading, add, update, remove } = useCategories()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Category | null>(null)
@@ -62,12 +66,20 @@ export function CategoriesPage() {
 
   const handleDelete = async () => {
     if (!deleteId) return
+    if (!user) return
     setDelLoading(true)
     try {
+      const usage = await getCategoryUsage(user.uid, deleteId)
+      const total = usage.transactions + usage.fixedAccounts + usage.installmentGroups
+      if (total > 0) {
+        toast.error('Esta categoria está em uso e não pode ser excluída. Edite os lançamentos ou migre para outra categoria.')
+        setDeleteId(null)
+        return
+      }
       await remove(deleteId)
       toast.success('Categoria excluída')
-    } catch {
-      toast.error('Erro ao excluir')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir'))
     } finally {
       setDelLoading(false)
       setDeleteId(null)
@@ -155,8 +167,8 @@ interface CategoryModalProps {
   onClose: () => void
   onSaved: () => void
   editItem: Category | null
-  onAdd: (data: any) => Promise<void>
-  onUpdate: (id: string, data: any) => Promise<void>
+  onAdd: (data: Omit<Category, 'id'>) => Promise<void>
+  onUpdate: (id: string, data: Partial<Omit<Category, 'id'>>) => Promise<void>
   usedColors: string[]
 }
 
@@ -166,22 +178,18 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate, used
   const [color, setColor] = useState(PRESET_COLORS[0])
   const [type, setType] = useState<CategoryType>('expense')
 
-  const [initialized, setInitialized] = useState(false)
-  if (open && !initialized) {
-    setInitialized(true)
-    setTimeout(() => {
-      if (editItem) {
-        setName(editItem.name)
-        setColor(editItem.color)
-        setType(editItem.type)
-      } else {
-        setName('')
-        setColor(PRESET_COLORS[0])
-        setType('expense')
-      }
-    }, 0)
-  }
-  if (!open && initialized) setInitialized(false)
+  useEffect(() => {
+    if (!open) return
+    if (editItem) {
+      setName(editItem.name)
+      setColor(editItem.color)
+      setType(editItem.type)
+    } else {
+      setName('')
+      setColor(PRESET_COLORS[0])
+      setType('expense')
+    }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -196,8 +204,8 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate, used
         toast.success('Categoria criada')
       }
       onSaved()
-    } catch (err: any) {
-      toast.error(err.message ?? 'Erro ao salvar')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao salvar'))
     } finally {
       setLoading(false)
     }

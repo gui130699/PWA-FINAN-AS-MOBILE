@@ -5,7 +5,6 @@ import {
   createInstallmentGroup,
   deleteInstallmentGroup,
   getInstallmentTransactions,
-  refreshInstallmentGroupStats,
   updateTransaction,
 } from '../services/firestore'
 import type { InstallmentGroup, Transaction } from '../types'
@@ -45,10 +44,9 @@ export function useInstallments() {
     return getInstallmentTransactions(user.uid, groupId)
   }
 
-  const payInstallment = async (transactionId: string, groupId: string) => {
+  const payInstallment = async (transactionId: string, _groupId: string) => {
     if (!user) return
     await updateTransaction(user.uid, transactionId, { status: 'paid' })
-    await refreshInstallmentGroupStats(user.uid, groupId)
     await load()
   }
 

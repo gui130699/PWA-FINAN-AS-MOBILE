@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   addDoc,
   updateDoc,
   deleteDoc,
@@ -10,16 +11,35 @@ import {
   orderBy,
   Timestamp,
   writeBatch,
+  type WriteBatch,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Category, Transaction, FixedAccount, InstallmentGroup, TransactionNature } from '../types'
-import { addMonths, getMonthYear } from '../utils/formatters'
+import { getMonthYear } from '../utils/formatters'
+import { addMonthsSafe, makeDateSafe } from '../utils/dateUtils'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const col = (uid: string, sub: string) => collection(db, `users/${uid}/${sub}`)
 
 function now() {
   return Timestamp.now()
+}
+
+/**
+ * Executa um array de operações em batches de até `chunkSize` (padrão 450).
+ * Necessário porque o Firestore limita cada writeBatch a 500 operações.
+ */
+async function commitBatchInChunks(
+  operations: Array<(batch: WriteBatch) => void>,
+  chunkSize = 450
+): Promise<void> {
+  if (operations.length === 0) return
+  for (let i = 0; i < operations.length; i += chunkSize) {
+    const chunk = operations.slice(i, i + chunkSize)
+    const batch = writeBatch(db)
+    chunk.forEach((op) => op(batch))
+    await batch.commit()
+  }
 }
 
 // ─── Categories ─────────────────────────────────────────────────────────────
@@ -33,8 +53,47 @@ export async function addCategory(uid: string, data: Omit<Category, 'id' | 'crea
   return ref.id
 }
 
+/**
+ * Atualiza uma categoria. Se o nome mudar, atualiza em cascata categoryName
+ * em todos os lançamentos, contas fixas e grupos de parcelamento relacionados.
+ */
 export async function updateCategory(uid: string, id: string, data: Partial<Category>): Promise<void> {
   await updateDoc(doc(db, `users/${uid}/categories/${id}`), { ...data, updatedAt: now() })
+
+  if (!data.name) return // nome não mudou, sem cascata necessária
+
+  const [txSnap, fixedSnap, instSnap] = await Promise.all([
+    getDocs(query(col(uid, 'transactions'), where('categoryId', '==', id))),
+    getDocs(query(col(uid, 'fixedAccounts'), where('categoryId', '==', id))),
+    getDocs(query(col(uid, 'installmentGroups'), where('categoryId', '==', id))),
+  ])
+
+  const ops: Array<(b: WriteBatch) => void> = []
+  txSnap.docs.forEach((d) => ops.push((b) => b.update(d.ref, { categoryName: data.name, updatedAt: now() })))
+  fixedSnap.docs.forEach((d) => ops.push((b) => b.update(d.ref, { categoryName: data.name, updatedAt: now() })))
+  instSnap.docs.forEach((d) => ops.push((b) => b.update(d.ref, { categoryName: data.name, updatedAt: now() })))
+
+  await commitBatchInChunks(ops)
+}
+
+/**
+ * Retorna a contagem de uso de uma categoria em transações, contas fixas e parcelamentos.
+ * Use antes de excluir para bloquear exclusão de categorias em uso.
+ */
+export async function getCategoryUsage(
+  uid: string,
+  categoryId: string
+): Promise<{ transactions: number; fixedAccounts: number; installmentGroups: number }> {
+  const [txSnap, fixedSnap, instSnap] = await Promise.all([
+    getDocs(query(col(uid, 'transactions'), where('categoryId', '==', categoryId))),
+    getDocs(query(col(uid, 'fixedAccounts'), where('categoryId', '==', categoryId))),
+    getDocs(query(col(uid, 'installmentGroups'), where('categoryId', '==', categoryId))),
+  ])
+  return {
+    transactions: txSnap.size,
+    fixedAccounts: fixedSnap.size,
+    installmentGroups: instSnap.size,
+  }
 }
 
 export async function deleteCategory(uid: string, id: string): Promise<void> {
@@ -60,11 +119,29 @@ export async function addTransaction(uid: string, data: Omit<Transaction, 'id' |
 }
 
 export async function updateTransaction(uid: string, id: string, data: Partial<Transaction>): Promise<void> {
-  await updateDoc(doc(db, `users/${uid}/transactions/${id}`), { ...data, updatedAt: now() })
+  const ref = doc(db, `users/${uid}/transactions/${id}`)
+  // Busca installmentGroupId antes de atualizar (pode não estar no payload `data`)
+  const snap = await getDoc(ref)
+  await updateDoc(ref, { ...data, updatedAt: now() })
+  if (snap.exists()) {
+    const groupId = snap.data().installmentGroupId as string | undefined
+    if (groupId) {
+      await refreshInstallmentGroupStats(uid, groupId)
+    }
+  }
 }
 
 export async function deleteTransaction(uid: string, id: string): Promise<void> {
-  await deleteDoc(doc(db, `users/${uid}/transactions/${id}`))
+  const ref = doc(db, `users/${uid}/transactions/${id}`)
+  // Busca installmentGroupId antes de deletar
+  const snap = await getDoc(ref)
+  await deleteDoc(ref)
+  if (snap.exists()) {
+    const groupId = snap.data().installmentGroupId as string | undefined
+    if (groupId) {
+      await refreshInstallmentGroupStats(uid, groupId)
+    }
+  }
 }
 
 // ─── Fixed Accounts ──────────────────────────────────────────────────────────
@@ -205,9 +282,8 @@ export async function generateFixedAccountsForMonth(
         skipped++
         continue
       }
-      const day = String(account.chargeDay).padStart(2, '0')
-      const m = String(month).padStart(2, '0')
-      const chargeDate = `${year}-${m}-${day}`
+      // Usa clampDayToMonth para evitar datas inválidas (ex: 31/fev → 28/fev)
+      const chargeDate = makeDateSafe(year, month, account.chargeDay)
 
       const ref = doc(col(uid, 'transactions'))
       batch.set(ref, {
@@ -282,7 +358,8 @@ export async function createInstallmentGroup(
     transactionNature?: TransactionNature
   }
 ): Promise<string> {
-  const lastDate = addMonths(data.firstInstallmentDate, data.totalInstallments - 1)
+  // Usa addMonthsSafe para evitar datas inválidas (ex: 31/jan + 1 mês → 28/fev, não 03/mar)
+  const lastDate = addMonthsSafe(data.firstInstallmentDate, data.totalInstallments - 1)
 
   const groupRef = await addDoc(col(uid, 'installmentGroups'), {
     ...data,
@@ -298,7 +375,7 @@ export async function createInstallmentGroup(
 
   const batch = writeBatch(db)
   for (let i = 0; i < data.totalInstallments; i++) {
-    const chargeDate = addMonths(data.firstInstallmentDate, i)
+    const chargeDate = addMonthsSafe(data.firstInstallmentDate, i)
     const { month, year } = getMonthYear(chargeDate)
     const ref = doc(col(uid, 'transactions'))
     batch.set(ref, {
@@ -361,12 +438,12 @@ export async function refreshInstallmentGroupStats(uid: string, groupId: string)
 
 export async function deleteInstallmentGroup(uid: string, groupId: string): Promise<void> {
   const transactions = await getInstallmentTransactions(uid, groupId)
-  const batch = writeBatch(db)
+  const ops: Array<(b: WriteBatch) => void> = []
   transactions.forEach((t) => {
-    batch.delete(doc(db, `users/${uid}/transactions/${t.id}`))
+    ops.push((b) => b.delete(doc(db, `users/${uid}/transactions/${t.id}`)))
   })
-  batch.delete(doc(db, `users/${uid}/installmentGroups/${groupId}`))
-  await batch.commit()
+  ops.push((b) => b.delete(doc(db, `users/${uid}/installmentGroups/${groupId}`)))
+  await commitBatchInChunks(ops)
 }
 
 // ─── Generate for Year ──────────────────────────────────────────────────────
@@ -454,6 +531,7 @@ export async function copyPendingFromPreviousMonth(
  * Calcula o saldo do mês anterior (receitas pagas − despesas pagas),
  * cria um lançamento "Saldo anterior (MM/AAAA)" no mês alvo e retorna o saldo.
  * Requer categoryId e categoryName para o lançamento de saldo.
+ * Retorna `created: false` se já existir um saldo anterior lançado para o mês alvo.
  */
 export async function bringPreviousMonthBalance(
   uid: string,
@@ -461,14 +539,29 @@ export async function bringPreviousMonthBalance(
   targetYear: number,
   balanceCategoryId: string,
   balanceCategoryName: string
-): Promise<{ balance: number }> {
+): Promise<{ balance: number; created: boolean }> {
   let prevMonth = targetMonth - 1
   let prevYear = targetYear
   if (prevMonth === 0) { prevMonth = 12; prevYear-- }
 
-  const prevSnap = await getDocs(
-    query(col(uid, 'transactions'), where('month', '==', prevMonth), where('year', '==', prevYear), where('status', '==', 'paid'))
-  )
+  // Busca transações do mês alvo para verificar duplicidade e calcular saldo
+  const [prevSnap, targetSnap] = await Promise.all([
+    getDocs(
+      query(col(uid, 'transactions'), where('month', '==', prevMonth), where('year', '==', prevYear), where('status', '==', 'paid'))
+    ),
+    getDocs(
+      query(col(uid, 'transactions'), where('month', '==', targetMonth), where('year', '==', targetYear))
+    ),
+  ])
+
+  // Verifica duplicidade: systemTag === 'previous_balance' OU descrição começa com "Saldo anterior"
+  const alreadyExists = targetSnap.docs.some((d) => {
+    const data = d.data()
+    return (
+      data.systemTag === 'previous_balance' ||
+      (typeof data.description === 'string' && data.description.startsWith('Saldo anterior'))
+    )
+  })
 
   let income = 0
   let expense = 0
@@ -478,8 +571,12 @@ export async function bringPreviousMonthBalance(
     if (nature === 'income') income += data.value as number
     else expense += data.value as number
   }
-
   const balance = income - expense
+
+  if (alreadyExists) {
+    return { balance, created: false }
+  }
+
   const mm = String(targetMonth).padStart(2, '0')
   const prevMm = String(prevMonth).padStart(2, '0')
   const chargeDate = `${targetYear}-${mm}-01`
@@ -498,11 +595,12 @@ export async function bringPreviousMonthBalance(
     status: 'paid',
     type: 'normal',
     transactionNature: nature,
+    systemTag: 'previous_balance',
     createdAt: now(),
     updatedAt: now(),
   })
 
-  return { balance }
+  return { balance, created: true }
 }
 
 // ─── Installment cascade update ───────────────────────────────────────────────
@@ -523,7 +621,7 @@ export async function updateInstallmentCascade(
 
   if (future.length === 0) return 0
 
-  const batch = writeBatch(db)
+  const ops: Array<(b: WriteBatch) => void> = []
   for (const t of future) {
     const patch: Record<string, unknown> = { updatedAt: now() }
     if (updates.value !== undefined) patch.value = updates.value
@@ -533,9 +631,9 @@ export async function updateInstallmentCascade(
       const base = updates.description.replace(/\s+\d+\/\d+$/, '')
       patch.description = `${base}${suffix}`
     }
-    batch.update(doc(db, `users/${uid}/transactions/${t.id}`), patch)
+    ops.push((b) => b.update(doc(db, `users/${uid}/transactions/${t.id}`), patch))
   }
-  await batch.commit()
+  await commitBatchInChunks(ops)
   await refreshInstallmentGroupStats(uid, installmentGroupId)
   return future.length
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -10,6 +10,7 @@ import { useTransactions } from '../hooks/useTransactions'
 import { useCategories } from '../hooks/useCategories'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
+import { getErrorMessage } from '../utils/errorUtils'
 import {
   createInstallmentGroup,
   generateFixedAccountsForMonth,
@@ -161,12 +162,16 @@ export function TransactionsPage() {
     if (!cat) return
     setBalanceLoading(true)
     try {
-      const { balance } = await bringPreviousMonthBalance(user.uid, month, year, balanceCatId, cat.name)
+      const { balance, created } = await bringPreviousMonthBalance(user.uid, month, year, balanceCatId, cat.name)
       const prevMonth = month === 1 ? 12 : month - 1
       const prevYear = month === 1 ? year - 1 : year
       const signal = balance >= 0 ? '+' : ''
-      toast.success(`Saldo de ${String(prevMonth).padStart(2, '0')}/${prevYear}: ${signal}${formatCurrency(balance)} lançado`)
-      reload()
+      if (created) {
+        toast.success(`Saldo de ${String(prevMonth).padStart(2, '0')}/${prevYear}: ${signal}${formatCurrency(balance)} lançado`)
+        reload()
+      } else {
+        toast.info(`Saldo anterior já havia sido lançado para ${String(month).padStart(2, '0')}/${year}`)
+      }
       setBalanceOpen(false)
       setBalanceCatId('')
     } catch {
@@ -431,7 +436,7 @@ interface TransactionModalProps {
   onClose: () => void
   onSaved: () => void
   editItem: Transaction | null
-  categories: any[]
+  categories: { id: string; name: string; type: string }[]
   defaultMonth: number
   defaultYear: number
 }
@@ -460,8 +465,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   const [transactionNature, setTransactionNature] = useState<TransactionNature>('expense')
   const [applyToFuture, setApplyToFuture] = useState(false)
 
-  const resetForm = () => {
-    setType('normal')
+  const resetForm = () => {    setType('normal')
     setDescription('')
     setValueStr('')
     setCategoryId(categories[0]?.id ?? '')
@@ -478,10 +482,16 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     setApplyToFuture(false)
   }
 
-  // Initialize form when modal opens (only once per open event)
-  const [initialized, setInitialized] = useState(false)
-  if (open && !initialized) {
-    setInitialized(true)
+  const selectedCat = categories.find((c) => c.id === categoryId)
+  // Se categoria tem tipo definido (income/expense), usa automaticamente; se 'both', usa o estado
+  const effectiveNature: TransactionNature = selectedCat?.type === 'income' ? 'income'
+    : selectedCat?.type === 'expense' ? 'expense'
+    : transactionNature
+
+  // Initialize form when modal opens
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) return
     if (editItem) {
       setDescription(editItem.description)
       setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
@@ -495,16 +505,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
     } else {
       resetForm()
     }
-  }
-  if (!open && initialized) setInitialized(false)
-
-  const selectedCat = categories.find((c: any) => c.id === categoryId)
-  // Se categoria tem tipo definido (income/expense), usa automaticamente; se 'both', usa o estado
-  const effectiveNature: TransactionNature = selectedCat?.type === 'income' ? 'income'
-    : selectedCat?.type === 'expense' ? 'expense'
-    : transactionNature
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!description.trim()) { toast.error('Informe a descrição'); return }
     const value = parseCurrencyInput(valueStr)
@@ -623,8 +624,8 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         toast.success('Lançamento criado!')
       }
       onSaved()
-    } catch (err: any) {
-      toast.error(err.message ?? 'Erro ao salvar')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao salvar'))
     } finally {
       setLoading(false)
     }
@@ -686,7 +687,7 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           onChange={(e) => setCategoryId(e.target.value)}
         >
           <option value="">Selecione</option>
-          {categories.map((c: any) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </Select>

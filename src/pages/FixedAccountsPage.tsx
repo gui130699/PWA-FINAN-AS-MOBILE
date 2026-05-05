@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2, Power, RefreshCw } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -7,7 +7,8 @@ import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useFixedAccounts } from '../hooks/useFixedAccounts'
 import { useCategories } from '../hooks/useCategories'
-import { formatCurrency, formatCurrencyInput, parseCurrencyInput } from '../utils/formatters'
+import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear } from '../utils/formatters'
+import { getErrorMessage } from '../utils/errorUtils'
 import { updateFixedAccountStartDate } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import { WEEK_DAY_LABELS } from '../types'
@@ -163,9 +164,9 @@ interface FixedAccountModalProps {
   onClose: () => void
   onSaved: () => void
   editItem: FixedAccount | null
-  categories: any[]
-  onAdd: (data: any) => Promise<void>
-  onUpdate: (id: string, data: any) => Promise<void>
+  categories: { id: string; name: string; type: string; color?: string }[]
+  onAdd: (data: Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>
+  onUpdate: (id: string, data: Partial<FixedAccount>) => Promise<void>
 }
 
 function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd, onUpdate }: FixedAccountModalProps) {
@@ -180,15 +181,16 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
   const [weekDay, setWeekDay] = useState<number>(1)
   const [transactionNature, setTransactionNature] = useState<TransactionNature>('expense')
 
-  const selectedCatModal = categories.find((c: any) => c.id === categoryId)
+  const selectedCatModal = categories.find((c) => c.id === categoryId)
   const effectiveNature: TransactionNature =
     selectedCatModal?.type === 'income' ? 'income'
     : selectedCatModal?.type === 'expense' ? 'expense'
     : transactionNature
 
-  const [initialized, setInitialized] = useState(false)
-  if (open && !initialized) {
-    setInitialized(true)
+  // Initialize form when modal opens
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) return
     if (editItem) {
       setDescription(editItem.description)
       setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
@@ -206,17 +208,19 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
         setStartDate('')
       }
     } else {
+      // Novo cadastro: usar mês/ano atual como data de início padrão
+      const { month, year } = currentMonthYear()
+      const m = String(month).padStart(2, '0')
       setDescription('')
       setValueStr('')
       setCategoryId(categories[0]?.id ?? '')
       setChargeDay('1')
-      setStartDate('')
+      setStartDate(`${year}-${m}-01`)
       setRecurrenceType('monthly')
       setWeekDay(1)
       setTransactionNature('expense')
     }
-  }
-  if (!open && initialized) setInitialized(false)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -275,14 +279,26 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
           toast.success('Conta fixa atualizada')
         }
       } else {
+        let startMonth = 0
+        let startYear = 0
+        if (startDate) {
+          const [yearStr, monthStr] = startDate.split('-')
+          startMonth = parseInt(monthStr)
+          startYear = parseInt(yearStr)
+        } else {
+          // Fallback: usa mês/ano atual se não informado
+          const cur = currentMonthYear()
+          startMonth = cur.month
+          startYear = cur.year
+        }
         const data: Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'> = {
           description,
           value,
           categoryId,
           categoryName: selectedCat?.name ?? '',
           chargeDay: isWeekly ? 1 : day,
-          startMonth: 0,
-          startYear: 0,
+          startMonth,
+          startYear,
           active: true,
           recurrenceType,
           transactionNature: effectiveNature,
@@ -292,8 +308,8 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
         toast.success('Conta fixa criada')
       }
       onSaved()
-    } catch (err: any) {
-      toast.error(err.message ?? 'Erro ao salvar')
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Erro ao salvar'))
     } finally {
       setLoading(false)
     }
@@ -405,6 +421,20 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
             />
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Lançamentos pendentes anteriores a esta data serão removidos. Pagos são mantidos.
+            </p>
+          </div>
+        )}
+
+        {!editItem && (
+          <div className="flex flex-col gap-1">
+            <Input
+              label="Início das cobranças"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Mês a partir do qual esta conta será gerada automaticamente.
             </p>
           </div>
         )}

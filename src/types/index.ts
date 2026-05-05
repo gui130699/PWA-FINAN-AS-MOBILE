@@ -30,6 +30,8 @@ export interface Transaction {
   type: TransactionType
   /** 'expense' ou 'income'. Ausente em registros antigos = depende do tipo da categoria. */
   transactionNature?: TransactionNature
+  /** Tag de sistema para identificar lançamentos especiais (ex: 'previous_balance'). */
+  systemTag?: string
   fixedAccountId?: string
   installmentGroupId?: string
   installmentNumber?: number
@@ -85,6 +87,8 @@ export interface InstallmentGroup {
   paidValue: number
   remainingValue: number
   status: InstallmentStatus
+  /** Natureza padrão das parcelas: 'expense' ou 'income'. */
+  transactionNature?: TransactionNature
   createdAt: Timestamp
   updatedAt: Timestamp
 }
