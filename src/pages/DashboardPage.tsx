@@ -61,22 +61,14 @@ import {
   VIEW_MODE_KEY,
   DEFAULT_WIDGETS,
   COMPACT_WIDGETS,
+  CARD_STORAGE_KEY,
+  DEFAULT_VISIBLE_CARDS,
   type WidgetId,
   type ViewMode,
+  type CardId,
 } from '../components/dashboard/DashboardCustomizeModal'
 
-// ─── Card keys (mantidos para compatibilidade) ─────────────────────────────
 
-const CARD_STORAGE_KEY = 'dashboard_visible_v1'
-
-type CardId =
-  | 'exp_total' | 'exp_paid' | 'exp_pending' | 'exp_fixed' | 'exp_inst'
-  | 'inc_paid' | 'inc_pending' | 'saldo_atual' | 'saldo_previsto' | 'inc_fixed' | 'inc_inst'
-
-const DEFAULT_VISIBLE: CardId[] = [
-  'exp_total', 'exp_paid', 'exp_pending', 'exp_fixed', 'exp_inst',
-  'inc_paid', 'inc_pending', 'saldo_atual', 'saldo_previsto', 'inc_fixed', 'inc_inst',
-]
 
 export function DashboardPage() {
   const { month: cm, year: cy } = currentMonthYear()
@@ -90,7 +82,7 @@ export function DashboardPage() {
 
   const [visibleCards, setVisibleCards] = useState<CardId[]>(() => {
     try { const s = localStorage.getItem(CARD_STORAGE_KEY); if (s) return JSON.parse(s) as CardId[] } catch {}
-    return DEFAULT_VISIBLE
+    return DEFAULT_VISIBLE_CARDS
   })
   const [activeWidgets, setActiveWidgets] = useState<WidgetId[]>(() => {
     try { const s = localStorage.getItem(WIDGETS_KEY); if (s) return JSON.parse(s) as WidgetId[] } catch {}
@@ -102,17 +94,10 @@ export function DashboardPage() {
   })
   const [editMode, setEditMode] = useState(false)
   const [cardModal, setCardModal] = useState<{ title: string; items: Transaction[] } | null>(null)
-  const [showCardsEdit, setShowCardsEdit] = useState(false)
 
   const handleChangeWidgets = (ids: WidgetId[]) => { setActiveWidgets(ids); localStorage.setItem(WIDGETS_KEY, JSON.stringify(ids)) }
   const handleChangeViewMode = (mode: ViewMode) => { setViewMode(mode); localStorage.setItem(VIEW_MODE_KEY, mode) }
-  const toggleCard = (id: CardId) => {
-    setVisibleCards((prev) => {
-      const next = prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-      localStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(next))
-      return next
-    })
-  }
+  const handleChangeVisibleCards = (ids: CardId[]) => { setVisibleCards(ids); localStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(ids)) }
 
   const catTypeMap = useMemo(() => buildCatTypeMap(categories), [categories])
   function getNature(t: Transaction): TransactionNature { return getTransactionNature(t, catTypeMap) }
@@ -270,34 +255,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      <DashboardCustomizeModal open={editMode} onClose={() => setEditMode(false)} activeWidgets={activeWidgets} onChangeWidgets={handleChangeWidgets} viewMode={viewMode} onChangeViewMode={handleChangeViewMode} />
-
-      <Modal open={showCardsEdit} onClose={() => setShowCardsEdit(false)} title="Personalizar cards" size="sm" footer={<Button onClick={() => setShowCardsEdit(false)}>Concluido</Button>}>
-        <div className="flex flex-col gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Despesas</p>
-            <div className="flex flex-col gap-1">
-              {expCards.map((c) => (
-                <label key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                  <span className="text-sm text-slate-700 dark:text-slate-300">{c.label}</span>
-                  <input type="checkbox" checked={visibleCards.includes(c.id)} onChange={() => toggleCard(c.id)} className="w-4 h-4 accent-indigo-600 cursor-pointer" />
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Receitas &amp; Saldo</p>
-            <div className="flex flex-col gap-1">
-              {incCards.map((c) => (
-                <label key={c.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                  <span className="text-sm text-slate-700 dark:text-slate-300">{c.label}</span>
-                  <input type="checkbox" checked={visibleCards.includes(c.id)} onChange={() => toggleCard(c.id)} className="w-4 h-4 accent-indigo-600 cursor-pointer" />
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Modal>
+      <DashboardCustomizeModal open={editMode} onClose={() => setEditMode(false)} activeWidgets={activeWidgets} onChangeWidgets={handleChangeWidgets} viewMode={viewMode} onChangeViewMode={handleChangeViewMode} visibleCards={visibleCards} onChangeVisibleCards={handleChangeVisibleCards} />
 
       <Modal open={cardModal !== null} onClose={() => setCardModal(null)} title={cardModal?.title ?? ''} size="md" footer={<Button onClick={() => setCardModal(null)}>Fechar</Button>}>
         {cardModal && (

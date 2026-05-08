@@ -1,12 +1,42 @@
 /**
  * DashboardCustomizeModal.tsx
- * Modal de personalização: escolha de widgets visíveis e modo resumido/completo.
+ * Modal de personalização: cards principais + widgets visíveis + modo resumido/completo.
  * Persiste em localStorage:
- *   - dashboard_widgets_v2: lista de widget IDs ativos
+ *   - dashboard_visible_v1:  lista de CardId visíveis
+ *   - dashboard_widgets_v2:  lista de WidgetId ativos
  *   - dashboard_view_mode_v1: 'compact' | 'full'
  */
 import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
+
+// ─── Cards principais ────────────────────────────────────────────────────────
+
+export type CardId =
+  | 'exp_total' | 'exp_paid' | 'exp_pending' | 'exp_fixed' | 'exp_inst'
+  | 'inc_paid' | 'inc_pending' | 'saldo_atual' | 'saldo_previsto' | 'inc_fixed' | 'inc_inst'
+
+export const CARD_STORAGE_KEY = 'dashboard_visible_v1'
+
+export const CARD_LABELS: Record<CardId, { label: string; description: string }> = {
+  exp_total:      { label: 'Total de despesas',     description: 'Soma de todas as despesas do mês.' },
+  exp_paid:       { label: 'Despesas pagas',         description: 'Despesas com status pago.' },
+  exp_pending:    { label: 'Despesas pendentes',     description: 'Despesas ainda não pagas.' },
+  exp_fixed:      { label: 'Despesas fixas',         description: 'Despesas geradas por contas fixas.' },
+  exp_inst:       { label: 'Despesas parceladas',    description: 'Despesas de parcelamentos.' },
+  inc_paid:       { label: 'Receitas recebidas',     description: 'Receitas com status pago.' },
+  inc_pending:    { label: 'Receitas a receber',     description: 'Receitas ainda não recebidas.' },
+  saldo_atual:    { label: 'Saldo atual',            description: 'Receitas recebidas menos despesas pagas.' },
+  saldo_previsto: { label: 'Saldo previsto',         description: 'Receitas totais menos despesas totais.' },
+  inc_fixed:      { label: 'Receitas fixas',         description: 'Receitas geradas por contas fixas.' },
+  inc_inst:       { label: 'Receitas parceladas',    description: 'Receitas de parcelamentos.' },
+}
+
+export const DEFAULT_VISIBLE_CARDS: CardId[] = [
+  'exp_total', 'exp_paid', 'exp_pending', 'exp_fixed', 'exp_inst',
+  'inc_paid', 'inc_pending', 'saldo_atual', 'saldo_previsto', 'inc_fixed', 'inc_inst',
+]
+
+// ─── Widgets ─────────────────────────────────────────────────────────────────
 
 export type WidgetId =
   | 'smart_summary'
@@ -57,14 +87,23 @@ export const COMPACT_WIDGETS: WidgetId[] = [
   'recent_transactions',
 ]
 
+// ─── Modal ───────────────────────────────────────────────────────────────────
+
 interface Props {
   open: boolean
   onClose: () => void
+  // widgets
   activeWidgets: WidgetId[]
   onChangeWidgets: (ids: WidgetId[]) => void
   viewMode: ViewMode
   onChangeViewMode: (mode: ViewMode) => void
+  // cards principais
+  visibleCards: CardId[]
+  onChangeVisibleCards: (ids: CardId[]) => void
 }
+
+const ALL_CARD_IDS = Object.keys(CARD_LABELS) as CardId[]
+const ALL_WIDGET_IDS = Object.keys(WIDGET_LABELS) as WidgetId[]
 
 export function DashboardCustomizeModal({
   open,
@@ -73,15 +112,24 @@ export function DashboardCustomizeModal({
   onChangeWidgets,
   viewMode,
   onChangeViewMode,
+  visibleCards,
+  onChangeVisibleCards,
 }: Props) {
-  const toggle = (id: WidgetId) => {
-    const next = activeWidgets.includes(id)
-      ? activeWidgets.filter((w) => w !== id)
-      : [...activeWidgets, id]
-    onChangeWidgets(next)
+  const toggleWidget = (id: WidgetId) => {
+    onChangeWidgets(
+      activeWidgets.includes(id)
+        ? activeWidgets.filter((w) => w !== id)
+        : [...activeWidgets, id],
+    )
   }
 
-  const allIds = Object.keys(WIDGET_LABELS) as WidgetId[]
+  const toggleCard = (id: CardId) => {
+    onChangeVisibleCards(
+      visibleCards.includes(id)
+        ? visibleCards.filter((c) => c !== id)
+        : [...visibleCards, id],
+    )
+  }
 
   return (
     <Modal
@@ -91,10 +139,13 @@ export function DashboardCustomizeModal({
       size="sm"
       footer={<Button onClick={onClose}>Concluído</Button>}
     >
-      <div className="flex flex-col gap-4">
-        {/* Modo de visualização */}
+      <div className="flex flex-col gap-5">
+
+        {/* ── Visualização ── */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Visualização</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+            Visualização
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {(['compact', 'full'] as ViewMode[]).map((mode) => (
               <button
@@ -117,11 +168,69 @@ export function DashboardCustomizeModal({
           </p>
         </div>
 
-        {/* Blocos */}
+        {/* ── Cards principais ── */}
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Blocos de informação</p>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Cards principais
+            </p>
+            <button
+              onClick={() => onChangeVisibleCards(DEFAULT_VISIBLE_CARDS)}
+              className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+            >
+              Selecionar todos
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Escolha quais indicadores aparecem no topo da tela inicial.
+          </p>
+          {visibleCards.length === 0 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 mb-2">
+              Todos os cards estão ocultos. Use "Selecionar todos" para restaurá-los.
+            </p>
+          )}
           <div className="flex flex-col gap-1">
-            {allIds.map((id) => (
+            {ALL_CARD_IDS.map((id) => {
+              const { label, description } = CARD_LABELS[id]
+              return (
+                <label
+                  key={id}
+                  className="flex items-start justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{label}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{description}</p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={visibleCards.includes(id)}
+                    onChange={() => toggleCard(id)}
+                    className="w-4 h-4 accent-indigo-600 cursor-pointer mt-0.5 shrink-0"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Blocos do Dashboard ── */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Blocos do dashboard
+            </p>
+            <button
+              onClick={() => onChangeWidgets(DEFAULT_WIDGETS)}
+              className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+            >
+              Restaurar padrões
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Escolha quais análises e gráficos aparecem abaixo dos cards.
+          </p>
+          <div className="flex flex-col gap-1">
+            {ALL_WIDGET_IDS.map((id) => (
               <label
                 key={id}
                 className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
@@ -130,7 +239,7 @@ export function DashboardCustomizeModal({
                 <input
                   type="checkbox"
                   checked={activeWidgets.includes(id)}
-                  onChange={() => toggle(id)}
+                  onChange={() => toggleWidget(id)}
                   className="w-4 h-4 accent-indigo-600 cursor-pointer"
                 />
               </label>
@@ -138,13 +247,6 @@ export function DashboardCustomizeModal({
           </div>
         </div>
 
-        {/* Reset */}
-        <button
-          onClick={() => onChangeWidgets(DEFAULT_WIDGETS)}
-          className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline text-center"
-        >
-          Restaurar padrões
-        </button>
       </div>
     </Modal>
   )
