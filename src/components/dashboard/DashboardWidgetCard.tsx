@@ -25,9 +25,9 @@ export function DashboardWidgetCard({
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden ${className}`}>
+    <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm ${className}`}>
       <div
-        className={`flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700 ${collapsible ? 'cursor-pointer select-none' : ''}`}
+        className={`flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700 rounded-t-2xl overflow-hidden ${collapsible ? 'cursor-pointer select-none' : ''}`}
         onClick={collapsible ? () => setOpen((v) => !v) : undefined}
       >
         <div className="flex-1 min-w-0">
@@ -42,7 +42,7 @@ export function DashboardWidgetCard({
         )}
       </div>
       {(!collapsible || open) && (
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-visible">{children}</div>
       )}
     </div>
   )

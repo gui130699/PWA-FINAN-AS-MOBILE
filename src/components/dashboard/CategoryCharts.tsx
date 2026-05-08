@@ -63,28 +63,30 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
       }
     >
       {mode === 'pie' ? (
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-            <Pie
-              data={displayed}
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={95}
-              paddingAngle={3}
-              dataKey="value"
-              nameKey="name"
-            >
-              {displayed.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(val) => [formatCurrency(Number(val)), '']}
-              contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', fontSize: 12 }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="w-full" style={{ height: 220 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={displayed}
+                cx="50%"
+                cy="50%"
+                innerRadius="38%"
+                outerRadius="62%"
+                paddingAngle={3}
+                dataKey="value"
+                nameKey="name"
+              >
+                {displayed.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(val) => [formatCurrency(Number(val)), '']}
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', fontSize: 12 }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       ) : (
         <ResponsiveContainer width="100%" height={Math.max(200, displayed.length * 38)}>
           <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
