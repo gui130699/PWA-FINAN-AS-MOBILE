@@ -52,7 +52,6 @@ import { PreviousMonthComparison } from '../components/dashboard/PreviousMonthCo
 import { AnnualOverviewWidget } from '../components/dashboard/AnnualOverviewWidget'
 import { EvolutionChart } from '../components/dashboard/EvolutionChart'
 import { ExpenseCategoryChart, IncomeCategoryChart } from '../components/dashboard/CategoryCharts'
-import { FutureBillsWidget } from '../components/dashboard/FutureBillsWidget'
 import { FixedAccountsWidget } from '../components/dashboard/FixedAccountsWidget'
 import { TopExpensesWidget } from '../components/dashboard/TopExpensesWidget'
 import { SmartAlertsWidget } from '../components/dashboard/SmartAlertsWidget'
@@ -255,7 +254,6 @@ export function DashboardPage() {
       {isVisible('prev_comparison') && <PreviousMonthComparison comparison={comparison} hasPrevData={hasPrevData} />}
       {isVisible('top_expenses') && <TopExpensesWidget topTransactions={topExpenses} />}
       {isVisible('fixed_accounts') && <FixedAccountsWidget fixedSummary={fixedSummary} />}
-      {isVisible('future_bills') && <FutureBillsWidget futureBills={futureBills} />}
       {isVisible('expense_category') && <ExpenseCategoryChart items={expCategoryItems} />}
       {isVisible('income_category') && <IncomeCategoryChart items={incCategoryItems} />}
       {isVisible('evolution_chart') && evolutionPoints.length > 0 && <EvolutionChart allPoints={evolutionPoints} />}

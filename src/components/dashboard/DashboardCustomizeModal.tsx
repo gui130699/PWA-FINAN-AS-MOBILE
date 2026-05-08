@@ -16,7 +16,6 @@ export type WidgetId =
   | 'evolution_chart'
   | 'expense_category'
   | 'income_category'
-  | 'future_bills'
   | 'fixed_accounts'
   | 'top_expenses'
   | 'smart_alerts'
@@ -32,7 +31,6 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
   evolution_chart:       'Evolução mensal (gráfico)',
   expense_category:      'Despesas por categoria',
   income_category:       'Receitas por categoria',
-  future_bills:          'Contas futuras',
   fixed_accounts:        'Contas fixas',
   top_expenses:          'Maiores gastos',
   smart_alerts:          'Alertas inteligentes',
@@ -47,7 +45,6 @@ export const DEFAULT_WIDGETS: WidgetId[] = [
   'smart_alerts',
   'expense_category',
   'evolution_chart',
-  'future_bills',
   'fixed_accounts',
   'recent_transactions',
 ]

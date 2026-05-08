@@ -11,7 +11,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Legend,
 } from 'recharts'
 import type { CategoryRankItem } from '../../utils/dashboardInsights'
 import { DashboardWidgetCard, EmptyState } from './DashboardWidgetCard'
@@ -64,14 +63,14 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
       }
     >
       {mode === 'pie' ? (
-        <ResponsiveContainer width="100%" height={240}>
-          <PieChart>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
             <Pie
               data={displayed}
               cx="50%"
               cy="50%"
-              innerRadius={55}
-              outerRadius={85}
+              innerRadius={60}
+              outerRadius={95}
               paddingAngle={3}
               dataKey="value"
               nameKey="name"
@@ -83,9 +82,6 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
             <Tooltip
               formatter={(val) => [formatCurrency(Number(val)), '']}
               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', fontSize: 12 }}
-            />
-            <Legend
-              formatter={(value) => <span className="text-xs text-slate-600 dark:text-slate-300">{value}</span>}
             />
           </PieChart>
         </ResponsiveContainer>
