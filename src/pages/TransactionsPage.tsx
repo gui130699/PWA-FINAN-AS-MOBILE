@@ -77,7 +77,8 @@ export function TransactionsPage() {
   const [month, setMonth] = useState(cm)
   const [year, setYear] = useState(cy)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'paid'>('all')
-  const [filterCat, setFilterCat] = useState('')
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [catModalOpen, setCatModalOpen] = useState(false)
   const [filterNature, setFilterNature] = useState<NatureFilter>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -121,12 +122,23 @@ export function TransactionsPage() {
 
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
-    if (filterCat && t.categoryId !== filterCat) return false
+    if (selectedCategoryIds.length > 0 && !selectedCategoryIds.includes(t.categoryId)) return false
     if (filterNature !== 'all' && getTxNature(t) !== filterNature) return false
     return true
   })
 
   const ordered = sortTransactions(filtered, sortBy)
+
+  const visibleTotals = useMemo(() => {
+    let income = 0
+    let expense = 0
+    for (const tx of ordered) {
+      if (getTxNature(tx) === 'income') income += tx.value
+      else expense += tx.value
+    }
+    return { income, expense, balance: income - expense, count: ordered.length }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ordered, catTypeMap])
 
   const txSummary = useMemo(() => {
     const exp = transactions.filter((t) => getTxNature(t) === 'expense')
@@ -358,16 +370,20 @@ export function TransactionsPage() {
               {n === 'all' ? 'Todos tipos' : n === 'expense' ? '↓ Despesas' : '↑ Receitas'}
             </button>
           ))}
-          <select
-            value={filterCat}
-            onChange={(e) => setFilterCat(e.target.value)}
-            className="shrink-0 px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          <button
+            onClick={() => setCatModalOpen(true)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              selectedCategoryIds.length > 0
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+            }`}
           >
-            <option value="">Todas categorias</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            {selectedCategoryIds.length === 0
+              ? 'Categorias'
+              : selectedCategoryIds.length === 1
+              ? (categories.find((c) => c.id === selectedCategoryIds[0])?.name ?? '1 categoria')
+              : `${selectedCategoryIds.length} categorias`}
+          </button>
         </div>
         <select
           value={sortBy}
@@ -386,6 +402,37 @@ export function TransactionsPage() {
           <option value="value_desc">Valor: maior para menor</option>
         </select>
       </div>
+
+      {/* Totalizador dos lançamentos em tela */}
+      {!loading && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-2">Resumo dos lançamentos em tela</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className={`rounded-xl border p-2.5 text-center ${
+              visibleTotals.balance >= 0
+                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'
+            }`}>
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">Total em tela</p>
+              <p className={`text-sm font-bold leading-tight ${
+                visibleTotals.balance >= 0 ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'
+              }`}>{formatCurrency(visibleTotals.balance)}</p>
+            </div>
+            <div className="rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 p-2.5 text-center">
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">Despesas em tela</p>
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-300 leading-tight">{formatCurrency(visibleTotals.expense)}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-2.5 text-center">
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">Receitas em tela</p>
+              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 leading-tight">{formatCurrency(visibleTotals.income)}</p>
+            </div>
+            <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 p-2.5 text-center">
+              <p className="text-[9px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">Itens visíveis</p>
+              <p className="text-sm font-bold text-indigo-700 dark:text-indigo-300 leading-tight">{visibleTotals.count} {visibleTotals.count === 1 ? 'lançamento' : 'lançamentos'}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* List */}
       {loading ? (
@@ -612,7 +659,108 @@ export function TransactionsPage() {
         uid={user?.uid ?? ''}
         onDone={() => { setGenYearOpen(false); reload() }}
       />
+
+      <CategoryFilterModal
+        open={catModalOpen}
+        onClose={() => setCatModalOpen(false)}
+        categories={categories}
+        selectedIds={selectedCategoryIds}
+        onChange={setSelectedCategoryIds}
+      />
     </div>
+  )
+}
+
+// ─── Category Filter Modal ────────────────────────────────────────────────────
+interface CategoryFilterModalProps {
+  open: boolean
+  onClose: () => void
+  categories: { id: string; name: string; type: string; color?: string }[]
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
+}
+
+function CategoryFilterModal({ open, onClose, categories, selectedIds, onChange }: CategoryFilterModalProps) {
+  const [draft, setDraft] = useState<string[]>(selectedIds)
+
+  useEffect(() => {
+    if (open) setDraft(selectedIds)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggle(id: string) {
+    setDraft((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])
+  }
+
+  function handleApply() {
+    onChange(draft)
+    onClose()
+  }
+
+  function handleClear() {
+    setDraft([])
+    onChange([])
+    onClose()
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={() => { onChange(draft); onClose() }}
+      title="Filtrar por categorias"
+      size="sm"
+      footer={
+        <div className="flex gap-2 w-full">
+          <Button variant="secondary" onClick={handleClear} className="flex-1">Limpar</Button>
+          <Button onClick={handleApply} className="flex-1">Aplicar</Button>
+        </div>
+      }
+    >
+      <div className="flex flex-col gap-1 max-h-72 overflow-y-auto -mx-1 px-1">
+        <button
+          onClick={() => setDraft([])}
+          className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors text-left ${
+            draft.length === 0
+              ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+            draft.length === 0
+              ? 'bg-indigo-600 border-indigo-600 text-white'
+              : 'border-slate-300 dark:border-slate-600'
+          }`}>
+            {draft.length === 0 && <span className="text-[10px] font-bold">✓</span>}
+          </span>
+          Todas as categorias
+        </button>
+        {categories.map((cat) => {
+          const checked = draft.includes(cat.id)
+          return (
+            <button
+              key={cat.id}
+              onClick={() => toggle(cat.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors text-left ${
+                checked
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                checked
+                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                  : 'border-slate-300 dark:border-slate-600'
+              }`}>
+                {checked && <span className="text-[10px] font-bold">✓</span>}
+              </span>
+              {cat.color && (
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+              )}
+              <span className="truncate">{cat.name}</span>
+            </button>
+          )
+        })}
+      </div>
+    </Modal>
   )
 }
 

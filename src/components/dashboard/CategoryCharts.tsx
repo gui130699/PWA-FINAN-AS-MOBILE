@@ -2,21 +2,17 @@
 import { useState } from 'react'
 import {
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
   Tooltip,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
+  Cell,
 } from 'recharts'
 import type { CategoryRankItem } from '../../utils/dashboardInsights'
 import { DashboardWidgetCard, EmptyState } from './DashboardWidgetCard'
 import { formatCurrency } from '../../utils/formatters'
-
-type ChartMode = 'pie' | 'bar'
 
 interface CategoryChartProps {
   title: string
@@ -25,7 +21,6 @@ interface CategoryChartProps {
 }
 
 function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
-  const [mode, setMode] = useState<ChartMode>('pie')
   const [showAll, setShowAll] = useState(false)
   const displayed = showAll ? items : items.slice(0, 5)
 
@@ -44,51 +39,8 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
       title={title}
       subtitle={subtitle}
       collapsible
-      headerExtra={
-        <div className="flex gap-1">
-          {(['pie', 'bar'] as ChartMode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-colors ${
-                mode === m
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
-              }`}
-            >
-              {m === 'pie' ? 'Pizza' : 'Barras'}
-            </button>
-          ))}
-        </div>
-      }
     >
-      {mode === 'pie' ? (
-        <div className="w-full" style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={displayed}
-                cx="50%"
-                cy="50%"
-                innerRadius="38%"
-                outerRadius="62%"
-                paddingAngle={3}
-                dataKey="value"
-                nameKey="name"
-              >
-                {displayed.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(val) => [formatCurrency(Number(val)), '']}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', fontSize: 12 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <ResponsiveContainer width="100%" height={Math.max(200, displayed.length * 38)}>
+      <ResponsiveContainer width="100%" height={Math.max(200, displayed.length * 38)}>
           <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="currentColor" className="text-slate-100 dark:text-slate-700" />
             <XAxis
@@ -118,8 +70,7 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
               ))}
             </Bar>
           </BarChart>
-        </ResponsiveContainer>
-      )}
+      </ResponsiveContainer>
 
       {/* Lista compacta com % */}
       <div className="mt-3 space-y-1.5">
