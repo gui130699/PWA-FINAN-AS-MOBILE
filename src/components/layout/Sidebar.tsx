@@ -13,6 +13,7 @@ import {
   Trash2,
   BarChart2,
   HelpCircle,
+  Database,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -27,6 +28,7 @@ const links = [
   { to: '/installments', icon: CreditCard, label: 'Parceladas' },
   { to: '/categories', icon: Tag, label: 'Categorias' },
   { to: '/reports', icon: BarChart2, label: 'Relatórios' },
+  { to: '/my-data', icon: Database, label: 'Meus Dados' },
   { to: '/help', icon: HelpCircle, label: 'Ajuda' },
 ]
 

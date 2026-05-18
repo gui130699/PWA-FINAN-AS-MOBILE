@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  getInstallmentGroups,
-  createInstallmentGroup,
-  deleteInstallmentGroup,
-  getInstallmentTransactions,
-  updateTransaction,
-} from '../services/firestore'
+  getInstallmentGroupsOfflineFirst,
+  createInstallmentGroupOfflineFirst,
+  deleteInstallmentGroupOfflineFirst,
+  getInstallmentTransactionsOfflineFirst,
+} from '../services/installmentsRepository'
+import { updateTransaction } from '../services/firestore'
 import type { InstallmentGroup, Transaction } from '../types'
 
 export function useInstallments() {
@@ -18,7 +18,7 @@ export function useInstallments() {
     if (!user) return
     setLoading(true)
     try {
-      const data = await getInstallmentGroups(user.uid)
+      const data = await getInstallmentGroupsOfflineFirst(user.uid)
       setGroups(data)
     } finally {
       setLoading(false)
@@ -27,24 +27,24 @@ export function useInstallments() {
 
   useEffect(() => { load() }, [load])
 
-  const create = async (data: Parameters<typeof createInstallmentGroup>[1]) => {
+  const create = async (data: Parameters<typeof createInstallmentGroupOfflineFirst>[1]) => {
     if (!user) return
-    await createInstallmentGroup(user.uid, data)
+    await createInstallmentGroupOfflineFirst(user.uid, data)
     await load()
   }
 
   const remove = async (groupId: string) => {
     if (!user) return
-    await deleteInstallmentGroup(user.uid, groupId)
+    await deleteInstallmentGroupOfflineFirst(user.uid, groupId)
     await load()
   }
 
   const getTransactions = async (groupId: string): Promise<Transaction[]> => {
     if (!user) return []
-    return getInstallmentTransactions(user.uid, groupId)
+    return getInstallmentTransactionsOfflineFirst(user.uid, groupId)
   }
 
-  const payInstallment = async (transactionId: string, _groupId: string) => {
+  const payInstallment = async (transactionId: string) => {
     if (!user) return
     await updateTransaction(user.uid, transactionId, { status: 'paid' })
     await load()
@@ -52,3 +52,4 @@ export function useInstallments() {
 
   return { groups, loading, reload: load, create, remove, getTransactions, payInstallment }
 }
+

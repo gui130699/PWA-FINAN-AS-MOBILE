@@ -166,6 +166,39 @@ export async function deleteFixedAccount(uid: string, id: string): Promise<void>
 }
 
 /**
+ * Exclui uma conta fixa e opcionalmente todos os lançamentos PENDENTES futuros
+ * vinculados a ela (lançamentos pagos são mantidos).
+ * Retorna o número de transações pendentes removidas.
+ */
+export async function deleteFixedAccountWithPending(
+  uid: string,
+  id: string,
+  alsoDeletePending: boolean
+): Promise<{ deletedPending: number }> {
+  await deleteDoc(doc(db, `users/${uid}/fixedAccounts/${id}`))
+  if (!alsoDeletePending) return { deletedPending: 0 }
+
+  const today = new Date().toISOString().slice(0, 10)
+  const snap = await getDocs(
+    query(
+      col(uid, 'transactions'),
+      where('fixedAccountId', '==', id),
+      where('status', '==', 'pending')
+    )
+  )
+  const ops: Array<(b: WriteBatch) => void> = []
+  for (const d of snap.docs) {
+    const data = d.data() as { chargeDate?: string }
+    // Remove apenas pendentes a partir de hoje (futuros)
+    if (!data.chargeDate || data.chargeDate >= today) {
+      ops.push((b) => b.delete(d.ref))
+    }
+  }
+  if (ops.length > 0) await commitBatchInChunks(ops)
+  return { deletedPending: ops.length }
+}
+
+/**
  * Atualiza startMonth/startYear de uma conta fixa e remove os lançamentos
  * PENDENTES cujo mês/ano é anterior ao novo período de início.
  * Lançamentos já pagos são mantidos independente da data.
@@ -444,6 +477,48 @@ export async function deleteInstallmentGroup(uid: string, groupId: string): Prom
   })
   ops.push((b) => b.delete(doc(db, `users/${uid}/installmentGroups/${groupId}`)))
   await commitBatchInChunks(ops)
+}
+
+/**
+ * Exclui apenas as parcelas FUTURAS e PENDENTES de um grupo (não exclui o grupo nem as pagas).
+ * "Futuras" = chargeDate >= hoje.
+ * Retorna o número de parcelas removidas.
+ */
+export async function deleteFuturePendingInstallments(
+  uid: string,
+  groupId: string
+): Promise<{ deleted: number }> {
+  const today = new Date().toISOString().slice(0, 10)
+  const transactions = await getInstallmentTransactions(uid, groupId)
+  const toDelete = transactions.filter(
+    (t) => t.status === 'pending' && t.chargeDate >= today
+  )
+  if (toDelete.length === 0) return { deleted: 0 }
+  const ops: Array<(b: WriteBatch) => void> = toDelete.map((t) =>
+    (b) => b.delete(doc(db, `users/${uid}/transactions/${t.id}`))
+  )
+  await commitBatchInChunks(ops)
+  return { deleted: toDelete.length }
+}
+
+/**
+ * Quita (marca como pagas) todas as parcelas PENDENTES de um grupo.
+ * Retorna o número de parcelas quitadas.
+ */
+export async function settleAllInstallments(
+  uid: string,
+  groupId: string
+): Promise<{ settled: number }> {
+  const transactions = await getInstallmentTransactions(uid, groupId)
+  const pending = transactions.filter((t) => t.status === 'pending')
+  if (pending.length === 0) return { settled: 0 }
+  const ops: Array<(b: WriteBatch) => void> = pending.map((t) =>
+    (b) => b.update(doc(db, `users/${uid}/transactions/${t.id}`), { status: 'paid', updatedAt: Timestamp.now() })
+  )
+  await commitBatchInChunks(ops)
+  // Atualiza stats do grupo
+  await refreshInstallmentGroupStats(uid, groupId)
+  return { settled: pending.length }
 }
 
 // ─── Generate for Year ──────────────────────────────────────────────────────

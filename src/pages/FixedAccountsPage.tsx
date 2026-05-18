@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Pencil, Trash2, Power, RefreshCw } from 'lucide-react'
+import { Plus, Pencil, Trash2, Power, RefreshCw, AlertTriangle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -9,7 +9,7 @@ import { useFixedAccounts } from '../hooks/useFixedAccounts'
 import { useCategories } from '../hooks/useCategories'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear } from '../utils/formatters'
 import { getErrorMessage } from '../utils/errorUtils'
-import { updateFixedAccountStartDate } from '../services/firestore'
+import { updateFixedAccountStartDate, deleteFixedAccountWithPending } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
 import { WEEK_DAY_LABELS } from '../types'
 import type { FixedAccount, RecurrenceType, TransactionNature } from '../types'
@@ -17,22 +17,29 @@ import type { FixedAccount, RecurrenceType, TransactionNature } from '../types'
 export function FixedAccountsPage() {
   const { accounts, loading, add, update, remove } = useFixedAccounts()
   const { categories } = useCategories()
+  const { user } = useAuth()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<FixedAccount | null>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<FixedAccount | null>(null)
   const [delLoading, setDelLoading] = useState(false)
 
-  const handleDelete = async () => {
-    if (!deleteId) return
+  const handleDelete = async (alsoDeletePending: boolean) => {
+    if (!deleteTarget || !user) return
     setDelLoading(true)
     try {
-      await remove(deleteId)
-      toast.success('Conta fixa excluída')
-    } catch {
-      toast.error('Erro ao excluir')
+      await deleteFixedAccountWithPending(user.uid, deleteTarget.id, alsoDeletePending)
+      // Reload local state via remove (que já chama load())
+      await remove(deleteTarget.id)
+      if (alsoDeletePending) {
+        toast.success('Conta fixa excluída e lançamentos futuros pendentes removidos')
+      } else {
+        toast.success('Conta fixa excluída')
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir'))
     } finally {
       setDelLoading(false)
-      setDeleteId(null)
+      setDeleteTarget(null)
     }
   }
 
@@ -125,7 +132,7 @@ export function FixedAccountsPage() {
                   <Pencil className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setDeleteId(a.id)}
+                  onClick={() => setDeleteTarget(a)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -147,13 +154,66 @@ export function FixedAccountsPage() {
       />
 
       <ConfirmDialog
-        open={!!deleteId}
-        title="Excluir conta fixa"
-        message="Deseja excluir esta conta fixa? Os lançamentos já gerados não serão removidos."
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
-        loading={delLoading}
+        open={false}
+        title=""
+        message=""
+        onConfirm={() => {}}
+        onCancel={() => {}}
       />
+
+      {/* Modal de exclusão com opções */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !delLoading && setDeleteTarget(null)}
+        title="Excluir conta fixa"
+        size="sm"
+        footer={
+          <div className="flex gap-2 w-full flex-col sm:flex-row">
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={delLoading}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleDelete(false)}
+              loading={delLoading}
+              className="flex-1 !border-red-300 dark:!border-red-700 !text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
+            >
+              Só o cadastro
+            </Button>
+            <Button
+              onClick={() => handleDelete(true)}
+              loading={delLoading}
+              className="flex-1 !bg-red-600 hover:!bg-red-700"
+            >
+              Cadastro + pendentes
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Escolha como excluir <strong>{deleteTarget?.description}</strong>:
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+              <p className="font-medium mb-0.5">Só o cadastro</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Remove o cadastro da conta fixa. Os lançamentos já gerados (pagos e pendentes) são mantidos.</p>
+            </div>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3">
+              <p className="font-medium mb-0.5 text-red-700 dark:text-red-400">Cadastro + lançamentos futuros pendentes</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Remove o cadastro e todos os lançamentos pendentes a partir de hoje. Lançamentos já pagos são mantidos.</p>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

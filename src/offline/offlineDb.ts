@@ -2,17 +2,23 @@
  * offlineDb.ts — Banco local IndexedDB para estratégia offline-first.
  *
  * Stores:
- *  - transactions_cache   (espelho do Firestore + pendentes)
- *  - categories_cache     (reserved para uso futuro)
- *  - fixed_accounts_cache (reserved para uso futuro)
- *  - installment_groups_cache (reserved para uso futuro)
- *  - sync_queue           (fila de operações pendentes)
+ *  - transactions_cache       (espelho do Firestore + pendentes)
+ *  - categories_cache         (espelho de categorias + pendentes)
+ *  - fixed_accounts_cache     (espelho de contas fixas + pendentes)
+ *  - installment_groups_cache (espelho de grupos de parcelamento + pendentes)
+ *  - sync_queue               (fila de operações pendentes)
  */
 
-import type { LocalTransaction, SyncQueueItem } from '../types/offline'
+import type {
+  LocalTransaction,
+  LocalCategory,
+  LocalFixedAccount,
+  LocalInstallmentGroup,
+  SyncQueueItem,
+} from '../types/offline'
 
 const DB_NAME = 'finance_offline_db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let _db: IDBDatabase | null = null
 
@@ -35,16 +41,22 @@ export async function openOfflineDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('categories_cache')) {
         const s = db.createObjectStore('categories_cache', { keyPath: 'localId' })
         s.createIndex('by_uid', 'uid')
+        s.createIndex('by_serverId', 'serverId')
+        s.createIndex('by_syncStatus', 'syncStatus')
       }
 
       if (!db.objectStoreNames.contains('fixed_accounts_cache')) {
         const s = db.createObjectStore('fixed_accounts_cache', { keyPath: 'localId' })
         s.createIndex('by_uid', 'uid')
+        s.createIndex('by_serverId', 'serverId')
+        s.createIndex('by_syncStatus', 'syncStatus')
       }
 
       if (!db.objectStoreNames.contains('installment_groups_cache')) {
         const s = db.createObjectStore('installment_groups_cache', { keyPath: 'localId' })
         s.createIndex('by_uid', 'uid')
+        s.createIndex('by_serverId', 'serverId')
+        s.createIndex('by_syncStatus', 'syncStatus')
       }
 
       if (!db.objectStoreNames.contains('sync_queue')) {
@@ -148,6 +160,129 @@ export async function softDeleteTransaction(localId: string): Promise<void> {
   })
 }
 
+// ─── Categories ───────────────────────────────────────────────────────────────
+
+export async function putCategory(record: LocalCategory): Promise<void> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('categories_cache', 'readwrite')
+  await idbReq(tx.objectStore('categories_cache').put(record))
+}
+
+export async function getCategories(uid: string): Promise<LocalCategory[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('categories_cache', 'readonly')
+  const all = (await idbReq(tx.objectStore('categories_cache').index('by_uid').getAll(uid))) as LocalCategory[]
+  return all.filter((r) => !r.deleted)
+}
+
+export async function getCategoryByLocalId(localId: string): Promise<LocalCategory | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('categories_cache', 'readonly')
+  const result = await idbReq(tx.objectStore('categories_cache').get(localId))
+  return result as LocalCategory | undefined
+}
+
+export async function getCategoryByServerId(uid: string, serverId: string): Promise<LocalCategory | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('categories_cache', 'readonly')
+  const index = tx.objectStore('categories_cache').index('by_serverId')
+  const results = (await idbReq(index.getAll(serverId))) as LocalCategory[]
+  return results.find((r) => r.uid === uid)
+}
+
+export async function softDeleteCategory(localId: string): Promise<void> {
+  const existing = await getCategoryByLocalId(localId)
+  if (!existing) return
+  await putCategory({
+    ...existing,
+    deleted: true,
+    syncStatus: 'pending',
+    lastModifiedAt: new Date().toISOString(),
+  })
+}
+
+// ─── Fixed Accounts ───────────────────────────────────────────────────────────
+
+export async function putFixedAccount(record: LocalFixedAccount): Promise<void> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('fixed_accounts_cache', 'readwrite')
+  await idbReq(tx.objectStore('fixed_accounts_cache').put(record))
+}
+
+export async function getFixedAccounts(uid: string): Promise<LocalFixedAccount[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('fixed_accounts_cache', 'readonly')
+  const all = (await idbReq(tx.objectStore('fixed_accounts_cache').index('by_uid').getAll(uid))) as LocalFixedAccount[]
+  return all.filter((r) => !r.deleted)
+}
+
+export async function getFixedAccountByLocalId(localId: string): Promise<LocalFixedAccount | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('fixed_accounts_cache', 'readonly')
+  const result = await idbReq(tx.objectStore('fixed_accounts_cache').get(localId))
+  return result as LocalFixedAccount | undefined
+}
+
+export async function getFixedAccountByServerId(uid: string, serverId: string): Promise<LocalFixedAccount | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('fixed_accounts_cache', 'readonly')
+  const index = tx.objectStore('fixed_accounts_cache').index('by_serverId')
+  const results = (await idbReq(index.getAll(serverId))) as LocalFixedAccount[]
+  return results.find((r) => r.uid === uid)
+}
+
+export async function softDeleteFixedAccount(localId: string): Promise<void> {
+  const existing = await getFixedAccountByLocalId(localId)
+  if (!existing) return
+  await putFixedAccount({
+    ...existing,
+    deleted: true,
+    syncStatus: 'pending',
+    lastModifiedAt: new Date().toISOString(),
+  })
+}
+
+// ─── Installment Groups ───────────────────────────────────────────────────────
+
+export async function putInstallmentGroup(record: LocalInstallmentGroup): Promise<void> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('installment_groups_cache', 'readwrite')
+  await idbReq(tx.objectStore('installment_groups_cache').put(record))
+}
+
+export async function getInstallmentGroups(uid: string): Promise<LocalInstallmentGroup[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('installment_groups_cache', 'readonly')
+  const all = (await idbReq(tx.objectStore('installment_groups_cache').index('by_uid').getAll(uid))) as LocalInstallmentGroup[]
+  return all.filter((r) => !r.deleted)
+}
+
+export async function getInstallmentGroupByLocalId(localId: string): Promise<LocalInstallmentGroup | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('installment_groups_cache', 'readonly')
+  const result = await idbReq(tx.objectStore('installment_groups_cache').get(localId))
+  return result as LocalInstallmentGroup | undefined
+}
+
+export async function getInstallmentGroupByServerId(uid: string, serverId: string): Promise<LocalInstallmentGroup | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('installment_groups_cache', 'readonly')
+  const index = tx.objectStore('installment_groups_cache').index('by_serverId')
+  const results = (await idbReq(index.getAll(serverId))) as LocalInstallmentGroup[]
+  return results.find((r) => r.uid === uid)
+}
+
+export async function softDeleteInstallmentGroup(localId: string): Promise<void> {
+  const existing = await getInstallmentGroupByLocalId(localId)
+  if (!existing) return
+  await putInstallmentGroup({
+    ...existing,
+    deleted: true,
+    syncStatus: 'pending',
+    lastModifiedAt: new Date().toISOString(),
+  })
+}
+
 // ─── Sync Queue ───────────────────────────────────────────────────────────────
 
 export async function addQueueItem(item: SyncQueueItem): Promise<void> {
@@ -184,3 +319,4 @@ export async function getPendingCount(uid: string): Promise<number> {
   const items = await getPendingQueue(uid)
   return items.length
 }
+

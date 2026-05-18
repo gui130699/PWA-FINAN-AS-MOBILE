@@ -17,13 +17,27 @@ import {
   putTransaction,
   getTransactionByLocalId,
   deleteLocalRecord,
+  putCategory,
+  getCategoryByLocalId,
+  putFixedAccount,
+  getFixedAccountByLocalId,
+  putInstallmentGroup,
+  getInstallmentGroupByLocalId,
 } from './offlineDb'
 import {
   addTransaction,
   updateTransaction,
   deleteTransaction,
+  addCategory,
+  updateCategory,
+  deleteCategory,
+  addFixedAccount,
+  updateFixedAccount,
+  deleteFixedAccount,
+  createInstallmentGroup,
+  deleteInstallmentGroup,
 } from '../services/firestore'
-import type { Transaction } from '../types'
+import type { Transaction, Category, FixedAccount } from '../types'
 
 export { getPendingCount }
 
@@ -31,46 +45,166 @@ async function processItem(item: SyncQueueItem): Promise<void> {
   await updateQueueItem(item.id, { status: 'syncing' })
 
   try {
-    if (item.collection !== 'transactions') {
-      // Outras coleções são gerenciadas pela persistência nativa do Firestore
-      await removeQueueItem(item.id)
+    // ─── Transactions ──────────────────────────────────────────────────────
+    if (item.collection === 'transactions') {
+      if (item.action === 'create') {
+        const payload = item.payload as Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>
+        const serverId = await addTransaction(item.uid, payload)
+        const local = await getTransactionByLocalId(item.localId)
+        if (local) {
+          await putTransaction({
+            ...local,
+            serverId,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'update') {
+        const targetId = item.serverId ?? item.localId
+        const payload = item.payload as Partial<Transaction>
+        await updateTransaction(item.uid, targetId, payload)
+        const local = await getTransactionByLocalId(item.localId)
+        if (local) {
+          await putTransaction({
+            ...local,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'delete') {
+        if (item.serverId) {
+          await deleteTransaction(item.uid, item.serverId)
+        }
+        await deleteLocalRecord('transactions_cache', item.localId)
+        await removeQueueItem(item.id)
+      }
       return
     }
 
-    if (item.action === 'create') {
-      const payload = item.payload as Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'>
-      const serverId = await addTransaction(item.uid, payload)
-      const local = await getTransactionByLocalId(item.localId)
-      if (local) {
-        await putTransaction({
-          ...local,
-          serverId,
-          syncStatus: 'synced',
-          lastModifiedAt: new Date().toISOString(),
-        })
+    // ─── Categories ────────────────────────────────────────────────────────
+    if (item.collection === 'categories') {
+      if (item.action === 'create') {
+        const local = await getCategoryByLocalId(item.localId)
+        if (local?.deleted) {
+          // Criado e deletado offline antes de sincronizar: cancela
+          await deleteLocalRecord('categories_cache', item.localId)
+          await removeQueueItem(item.id)
+          return
+        }
+        const payload = item.payload as Omit<Category, 'id' | 'createdAt' | 'updatedAt'>
+        const serverId = await addCategory(item.uid, payload)
+        if (local) {
+          await putCategory({
+            ...local,
+            serverId,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'update') {
+        const targetId = item.serverId ?? item.localId
+        const payload = item.payload as Partial<Category>
+        await updateCategory(item.uid, targetId, payload)
+        const local = await getCategoryByLocalId(item.localId)
+        if (local) {
+          await putCategory({
+            ...local,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'delete') {
+        if (item.serverId) {
+          await deleteCategory(item.uid, item.serverId)
+        }
+        await deleteLocalRecord('categories_cache', item.localId)
+        await removeQueueItem(item.id)
       }
-      await removeQueueItem(item.id)
-    } else if (item.action === 'update') {
-      const targetId = item.serverId ?? item.localId
-      const payload = item.payload as Partial<Transaction>
-      await updateTransaction(item.uid, targetId, payload)
-      const local = await getTransactionByLocalId(item.localId)
-      if (local) {
-        await putTransaction({
-          ...local,
-          syncStatus: 'synced',
-          lastModifiedAt: new Date().toISOString(),
-        })
-      }
-      await removeQueueItem(item.id)
-    } else if (item.action === 'delete') {
-      if (item.serverId) {
-        await deleteTransaction(item.uid, item.serverId)
-      }
-      // Limpar o registro do cache local
-      await deleteLocalRecord('transactions_cache', item.localId)
-      await removeQueueItem(item.id)
+      return
     }
+
+    // ─── Fixed Accounts ────────────────────────────────────────────────────
+    if (item.collection === 'fixedAccounts') {
+      if (item.action === 'create') {
+        const local = await getFixedAccountByLocalId(item.localId)
+        if (local?.deleted) {
+          await deleteLocalRecord('fixed_accounts_cache', item.localId)
+          await removeQueueItem(item.id)
+          return
+        }
+        const payload = item.payload as Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'>
+        const serverId = await addFixedAccount(item.uid, payload)
+        if (local) {
+          await putFixedAccount({
+            ...local,
+            serverId,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'update') {
+        const targetId = item.serverId ?? item.localId
+        const payload = item.payload as Partial<FixedAccount>
+        await updateFixedAccount(item.uid, targetId, payload)
+        const local = await getFixedAccountByLocalId(item.localId)
+        if (local) {
+          await putFixedAccount({
+            ...local,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'delete') {
+        if (item.serverId) {
+          await deleteFixedAccount(item.uid, item.serverId)
+        }
+        await deleteLocalRecord('fixed_accounts_cache', item.localId)
+        await removeQueueItem(item.id)
+      }
+      return
+    }
+
+    // ─── Installment Groups ────────────────────────────────────────────────
+    if (item.collection === 'installmentGroups') {
+      if (item.action === 'create') {
+        const local = await getInstallmentGroupByLocalId(item.localId)
+        if (local?.deleted) {
+          await deleteLocalRecord('installment_groups_cache', item.localId)
+          await removeQueueItem(item.id)
+          return
+        }
+        const payload = item.payload as Parameters<typeof createInstallmentGroup>[1]
+        await createInstallmentGroup(item.uid, payload)
+        if (local) {
+          await putInstallmentGroup({
+            ...local,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'update') {
+        // Atualizações de grupo geralmente são feitas via transações; apenas remove da fila
+        await removeQueueItem(item.id)
+      } else if (item.action === 'delete') {
+        if (item.serverId) {
+          await deleteInstallmentGroup(item.uid, item.serverId)
+        }
+        await deleteLocalRecord('installment_groups_cache', item.localId)
+        await removeQueueItem(item.id)
+      }
+      return
+    }
+
+    // Coleção desconhecida — remove da fila sem processar
+    await removeQueueItem(item.id)
+
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Erro desconhecido'
     await updateQueueItem(item.id, {
@@ -106,3 +240,4 @@ export async function syncPendingChanges(uid: string): Promise<{ synced: number;
 export async function retryFailedChanges(uid: string): Promise<{ synced: number; failed: number }> {
   return syncPendingChanges(uid)
 }
+

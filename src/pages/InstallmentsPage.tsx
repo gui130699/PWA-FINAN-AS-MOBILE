@@ -1,10 +1,14 @@
 import { useState } from 'react'
-import { ChevronRight, Trash2, CheckCircle, Clock, AlertTriangle, CreditCard } from 'lucide-react'
+import { ChevronRight, Trash2, CheckCircle, Clock, AlertTriangle, CreditCard, CheckSquare, XSquare } from 'lucide-react'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
+import { Button } from '../components/ui/Button'
 import { PageLoader, EmptyState } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useInstallments } from '../hooks/useInstallments'
 import { formatCurrency, formatDate } from '../utils/formatters'
+import { settleAllInstallments, deleteFuturePendingInstallments } from '../services/firestore'
+import { useAuth } from '../contexts/AuthContext'
+import { getErrorMessage } from '../utils/errorUtils'
 import type { InstallmentGroup, Transaction } from '../types'
 
 const statusConfig = {
@@ -14,13 +18,15 @@ const statusConfig = {
 }
 
 export function InstallmentsPage() {
-  const { groups, loading, remove, getTransactions, payInstallment } = useInstallments()
+  const { groups, loading, remove, getTransactions, payInstallment, reload } = useInstallments()
+  const { user } = useAuth()
   const [selectedGroup, setSelectedGroup] = useState<InstallmentGroup | null>(null)
   const [groupTransactions, setGroupTransactions] = useState<Transaction[]>([])
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<InstallmentGroup | null>(null)
   const [delLoading, setDelLoading] = useState(false)
+  const [settleLoading, setSettleLoading] = useState(false)
 
   const handleOpenDetail = async (group: InstallmentGroup) => {
     setSelectedGroup(group)
@@ -37,23 +43,61 @@ export function InstallmentsPage() {
   }
 
   const handleDelete = async () => {
-    if (!deleteId) return
+    if (!deleteTarget) return
     setDelLoading(true)
     try {
-      await remove(deleteId)
+      await remove(deleteTarget.id)
       toast.success('Parcelamento excluído')
     } catch {
       toast.error('Erro ao excluir')
     } finally {
       setDelLoading(false)
-      setDeleteId(null)
+      setDeleteTarget(null)
+    }
+  }
+
+  const handleDeleteFuturePending = async () => {
+    if (!deleteTarget || !user) return
+    setDelLoading(true)
+    try {
+      const { deleted } = await deleteFuturePendingInstallments(user.uid, deleteTarget.id)
+      await reload()
+      toast.success(`${deleted} parcela(s) futura(s) pendente(s) removida(s)`)
+      setDeleteTarget(null)
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Erro ao excluir parcelas'))
+    } finally {
+      setDelLoading(false)
+    }
+  }
+
+  const handleSettleAll = async (group: InstallmentGroup) => {
+    if (!user) return
+    setSettleLoading(true)
+    try {
+      const { settled } = await settleAllInstallments(user.uid, group.id)
+      await reload()
+      if (settled === 0) {
+        toast.info('Não há parcelas pendentes para quitar')
+      } else {
+        toast.success(`${settled} parcela(s) quitada(s)!`)
+      }
+      // Atualiza lista de transações no modal se estiver aberto
+      if (detailOpen && selectedGroup?.id === group.id) {
+        const txs = await getTransactions(group.id)
+        setGroupTransactions(txs)
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Erro ao quitar parcelas'))
+    } finally {
+      setSettleLoading(false)
     }
   }
 
   const handlePayInstallment = async (transaction: Transaction) => {
     if (!selectedGroup) return
     try {
-      await payInstallment(transaction.id, selectedGroup.id)
+      await payInstallment(transaction.id)
       const txs = await getTransactions(selectedGroup.id)
       setGroupTransactions(txs)
       toast.success('Parcela marcada como paga')
@@ -132,9 +176,20 @@ export function InstallmentsPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="px-4 pb-3 flex justify-end">
+                <div className="px-4 pb-3 flex justify-end gap-1">
+                  {g.status !== 'paid_off' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleSettleAll(g) }}
+                      disabled={settleLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors disabled:opacity-50"
+                      title="Quitar todas as parcelas pendentes"
+                    >
+                      <CheckSquare className="w-4 h-4" />
+                      Quitar tudo
+                    </button>
+                  )}
                   <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteId(g.id) }}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(g) }}
                     className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -204,13 +259,67 @@ export function InstallmentsPage() {
       </Modal>
 
       <ConfirmDialog
-        open={!!deleteId}
-        title="Excluir parcelamento"
-        message="Isto irá excluir todas as parcelas deste lançamento. Esta ação não pode ser desfeita."
-        onConfirm={handleDelete}
-        onCancel={() => setDeleteId(null)}
-        loading={delLoading}
+        open={false}
+        title=""
+        message=""
+        onConfirm={() => {}}
+        onCancel={() => {}}
       />
+
+      {/* Modal de exclusão com opções */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => !delLoading && setDeleteTarget(null)}
+        title="Excluir parcelamento"
+        size="sm"
+        footer={
+          <div className="flex gap-2 w-full flex-col sm:flex-row">
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteTarget(null)}
+              disabled={delLoading}
+              className="flex-1"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleDeleteFuturePending}
+              loading={delLoading}
+              className="flex-1 !border-amber-300 dark:!border-amber-700 !text-amber-600 dark:!text-amber-400 hover:!bg-amber-50 dark:hover:!bg-amber-900/20"
+            >
+              <XSquare className="w-4 h-4 mr-1" />
+              Só futuras pendentes
+            </Button>
+            <Button
+              onClick={handleDelete}
+              loading={delLoading}
+              className="flex-1 !bg-red-600 hover:!bg-red-700"
+            >
+              Excluir tudo
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Como deseja excluir <strong>{deleteTarget?.description}</strong>?
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+              <p className="font-medium mb-0.5 text-amber-700 dark:text-amber-400">Só futuras pendentes</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Remove apenas as parcelas a partir de hoje com status pendente. As pagas são mantidas. O grupo continua existindo.</p>
+            </div>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-3">
+              <p className="font-medium mb-0.5 text-red-700 dark:text-red-400">Excluir tudo</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Remove o grupo e todas as parcelas (pagas e pendentes). Esta ação não pode ser desfeita.</p>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

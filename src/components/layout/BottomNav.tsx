@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Receipt, RefreshCw, CreditCard, BarChart2, Tag, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, Receipt, RefreshCw, CreditCard, BarChart2, Tag, Database } from 'lucide-react'
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Início' },
@@ -8,7 +8,7 @@ const links = [
   { to: '/installments', icon: CreditCard, label: 'Parcelas' },
   { to: '/categories', icon: Tag, label: 'Categ.' },
   { to: '/reports', icon: BarChart2, label: 'Relatórios' },
-  { to: '/help', icon: HelpCircle, label: 'Ajuda' },
+  { to: '/my-data', icon: Database, label: 'Dados' },
 ]
 
 export function BottomNav() {

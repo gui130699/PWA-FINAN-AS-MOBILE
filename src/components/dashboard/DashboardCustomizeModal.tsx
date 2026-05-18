@@ -50,21 +50,27 @@ export type WidgetId =
   | 'top_expenses'
   | 'smart_alerts'
   | 'recent_transactions'
+  | 'free_balance'
+  | 'urgent_bills'
+  | 'monthly_avg_comparison'
 
 export type ViewMode = 'compact' | 'full'
 
 export const WIDGET_LABELS: Record<WidgetId, string> = {
-  smart_summary:         'Resumo inteligente',
-  month_end_estimate:    'Estimativa de fechamento',
-  prev_comparison:       'Comparativo mês anterior',
-  annual_overview:       'Visão anual',
-  evolution_chart:       'Evolução mensal (gráfico)',
-  expense_category:      'Despesas por categoria',
-  income_category:       'Receitas por categoria',
-  fixed_accounts:        'Contas fixas',
-  top_expenses:          'Maiores gastos',
-  smart_alerts:          'Alertas inteligentes',
-  recent_transactions:   'Últimos lançamentos',
+  smart_summary:              'Resumo inteligente',
+  month_end_estimate:         'Estimativa de fechamento',
+  prev_comparison:            'Comparativo mês anterior',
+  annual_overview:            'Visão anual',
+  evolution_chart:            'Evolução mensal (gráfico)',
+  expense_category:           'Despesas por categoria',
+  income_category:            'Receitas por categoria',
+  fixed_accounts:             'Contas fixas',
+  top_expenses:               'Maiores gastos',
+  smart_alerts:               'Alertas inteligentes',
+  recent_transactions:        'Últimos lançamentos',
+  free_balance:               'Saldo livre',
+  urgent_bills:               'Contas urgentes',
+  monthly_avg_comparison:     'Comparação com média 3 meses',
 }
 
 export const WIDGETS_KEY  = 'dashboard_widgets_v2'
@@ -174,12 +180,21 @@ export function DashboardCustomizeModal({
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Cards principais
             </p>
-            <button
-              onClick={() => onChangeVisibleCards(DEFAULT_VISIBLE_CARDS)}
-              className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
-            >
-              Selecionar todos
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => onChangeVisibleCards([])}
+                className="text-[11px] text-slate-400 dark:text-slate-500 font-medium hover:underline"
+              >
+                Ocultar todos
+              </button>
+              <span className="text-[11px] text-slate-300 dark:text-slate-600">|</span>
+              <button
+                onClick={() => onChangeVisibleCards(DEFAULT_VISIBLE_CARDS)}
+                className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+              >
+                Restaurar padrão
+              </button>
+            </div>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
             Escolha quais indicadores aparecem no topo da tela inicial.

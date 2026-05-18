@@ -57,3 +57,74 @@ export interface LocalTransaction {
   createdAt: string
   updatedAt: string
 }
+
+/**
+ * Categoria armazenada no IndexedDB local.
+ */
+export interface LocalCategory {
+  localId: string
+  serverId?: string
+  uid: string
+  syncStatus: SyncStatus
+  lastModifiedAt: string
+  deleted?: boolean
+  name: string
+  color: string
+  type: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Conta fixa armazenada no IndexedDB local.
+ */
+export interface LocalFixedAccount {
+  localId: string
+  serverId?: string
+  uid: string
+  syncStatus: SyncStatus
+  lastModifiedAt: string
+  deleted?: boolean
+  description: string
+  value: number
+  categoryId: string
+  categoryName: string
+  chargeDay: number
+  startMonth: number
+  startYear: number
+  active: boolean
+  recurrenceType?: string
+  weekDay?: number
+  transactionNature?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Grupo de parcelamento armazenado no IndexedDB local.
+ */
+export interface LocalInstallmentGroup {
+  localId: string
+  serverId?: string
+  uid: string
+  syncStatus: SyncStatus
+  lastModifiedAt: string
+  deleted?: boolean
+  description: string
+  categoryId: string
+  categoryName: string
+  totalValue: number
+  installmentValue: number
+  totalInstallments: number
+  firstInstallmentDate: string
+  lastInstallmentDate: string
+  paidInstallments: number
+  pendingInstallments: number
+  paidValue: number
+  remainingValue: number
+  status: string
+  transactionNature?: string
+  createdAt: string
+  updatedAt: string
+}
+

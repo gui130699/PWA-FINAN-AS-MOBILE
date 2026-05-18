@@ -2,9 +2,192 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each user can only access their own data
+
+    // ── Funções auxiliares ────────────────────────────────────────────────────
+
+    function isString(v) {
+      return v is string;
+    }
+    function isNonEmptyString(v) {
+      return v is string && v.size() > 0;
+    }
+    function isNumber(v) {
+      return v is number;
+    }
+    function isBool(v) {
+      return v is bool;
+    }
+
+    // ── Cada usuário só pode acessar os próprios dados ─────────────────────
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Escrita genérica: apenas autenticado e dono
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Transactions — validação detalhada ────────────────────────────────
+    match /users/{userId}/transactions/{docId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && validateTransaction(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && validateTransactionUpdate(request.resource.data);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Categories — validação detalhada ──────────────────────────────────
+    match /users/{userId}/categories/{docId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && validateCategory(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && validateCategoryUpdate(request.resource.data);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Fixed Accounts — validação detalhada ──────────────────────────────
+    match /users/{userId}/fixedAccounts/{docId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && validateFixedAccount(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && validateFixedAccountUpdate(request.resource.data);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Installment Groups — validação detalhada ──────────────────────────
+    match /users/{userId}/installmentGroups/{docId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && validateInstallmentGroup(request.resource.data);
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && validateInstallmentGroupUpdate(request.resource.data);
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Validações de Transaction ─────────────────────────────────────────
+    function validateTransaction(d) {
+      return isNonEmptyString(d.description)
+        && d.description.size() <= 200
+        && isNumber(d.value) && d.value >= 0
+        && isNonEmptyString(d.categoryId)
+        && isNonEmptyString(d.categoryName)
+        && isNonEmptyString(d.status)
+        && d.status in ['pending', 'paid']
+        && isNonEmptyString(d.type)
+        && d.type in ['normal', 'fixed', 'installment']
+        && isNonEmptyString(d.launchDate)
+        && isNonEmptyString(d.chargeDate)
+        && isNumber(d.month) && d.month >= 1 && d.month <= 12
+        && isNumber(d.year)
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp;
+    }
+
+    function validateTransactionUpdate(d) {
+      return (!('description' in d) || (isNonEmptyString(d.description) && d.description.size() <= 200))
+        && (!('value' in d) || (isNumber(d.value) && d.value >= 0))
+        && (!('status' in d) || d.status in ['pending', 'paid'])
+        && (!('type' in d) || d.type in ['normal', 'fixed', 'installment'])
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && (!('month' in d) || (isNumber(d.month) && d.month >= 1 && d.month <= 12))
+        && d.updatedAt is timestamp;
+    }
+
+    // ── Validações de Category ────────────────────────────────────────────
+    function validateCategory(d) {
+      return isNonEmptyString(d.name)
+        && d.name.size() <= 100
+        && isNonEmptyString(d.color)
+        && isNonEmptyString(d.type)
+        && d.type in ['expense', 'income', 'both']
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp;
+    }
+
+    function validateCategoryUpdate(d) {
+      return (!('name' in d) || (isNonEmptyString(d.name) && d.name.size() <= 100))
+        && (!('color' in d) || isNonEmptyString(d.color))
+        && (!('type' in d) || d.type in ['expense', 'income', 'both'])
+        && d.updatedAt is timestamp;
+    }
+
+    // ── Validações de FixedAccount ────────────────────────────────────────
+    function validateFixedAccount(d) {
+      return isNonEmptyString(d.description)
+        && d.description.size() <= 200
+        && isNumber(d.value) && d.value >= 0
+        && isNonEmptyString(d.categoryId)
+        && isNonEmptyString(d.categoryName)
+        && isNumber(d.chargeDay) && d.chargeDay >= 1 && d.chargeDay <= 31
+        && isNumber(d.startMonth) && d.startMonth >= 1 && d.startMonth <= 12
+        && isNumber(d.startYear)
+        && isBool(d.active)
+        && (!('recurrenceType' in d) || d.recurrenceType in ['monthly', 'weekly'])
+        && (!('weekDay' in d) || (isNumber(d.weekDay) && d.weekDay >= 0 && d.weekDay <= 6))
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp;
+    }
+
+    function validateFixedAccountUpdate(d) {
+      return (!('description' in d) || (isNonEmptyString(d.description) && d.description.size() <= 200))
+        && (!('value' in d) || (isNumber(d.value) && d.value >= 0))
+        && (!('chargeDay' in d) || (isNumber(d.chargeDay) && d.chargeDay >= 1 && d.chargeDay <= 31))
+        && (!('startMonth' in d) || (isNumber(d.startMonth) && d.startMonth >= 1 && d.startMonth <= 12))
+        && (!('active' in d) || isBool(d.active))
+        && (!('recurrenceType' in d) || d.recurrenceType in ['monthly', 'weekly'])
+        && (!('weekDay' in d) || (isNumber(d.weekDay) && d.weekDay >= 0 && d.weekDay <= 6))
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && d.updatedAt is timestamp;
+    }
+
+    // ── Validações de InstallmentGroup ────────────────────────────────────
+    function validateInstallmentGroup(d) {
+      return isNonEmptyString(d.description)
+        && d.description.size() <= 200
+        && isNumber(d.totalValue) && d.totalValue >= 0
+        && isNumber(d.installmentValue) && d.installmentValue >= 0
+        && isNumber(d.totalInstallments) && d.totalInstallments > 0
+        && isNumber(d.paidInstallments) && d.paidInstallments >= 0
+        && isNumber(d.pendingInstallments) && d.pendingInstallments >= 0
+        && isNonEmptyString(d.status)
+        && d.status in ['ongoing', 'paid_off', 'late']
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && d.createdAt is timestamp
+        && d.updatedAt is timestamp;
+    }
+
+    function validateInstallmentGroupUpdate(d) {
+      return (!('description' in d) || (isNonEmptyString(d.description) && d.description.size() <= 200))
+        && (!('status' in d) || d.status in ['ongoing', 'paid_off', 'late'])
+        && (!('paidInstallments' in d) || (isNumber(d.paidInstallments) && d.paidInstallments >= 0))
+        && (!('pendingInstallments' in d) || (isNumber(d.pendingInstallments) && d.pendingInstallments >= 0))
+        && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
+        && d.updatedAt is timestamp;
     }
   }
 }
+

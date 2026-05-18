@@ -55,6 +55,9 @@ import { ExpenseCategoryChart, IncomeCategoryChart } from '../components/dashboa
 import { FixedAccountsWidget } from '../components/dashboard/FixedAccountsWidget'
 import { TopExpensesWidget } from '../components/dashboard/TopExpensesWidget'
 import { SmartAlertsWidget } from '../components/dashboard/SmartAlertsWidget'
+import { FreeBalanceWidget } from '../components/dashboard/FreeBalanceWidget'
+import { UrgentBillsWidget } from '../components/dashboard/UrgentBillsWidget'
+import { MonthAvgComparisonWidget } from '../components/dashboard/MonthAvgComparisonWidget'
 import {
   DashboardCustomizeModal,
   WIDGETS_KEY,
@@ -81,15 +84,28 @@ export function DashboardPage() {
   const { yearTransactions, prevMonthTransactions } = useDashboardData(month, year)
 
   const [visibleCards, setVisibleCards] = useState<CardId[]>(() => {
-    try { const s = localStorage.getItem(CARD_STORAGE_KEY); if (s) return JSON.parse(s) as CardId[] } catch {}
+    try {
+      const s = localStorage.getItem(CARD_STORAGE_KEY)
+      if (s) {
+        const saved = JSON.parse(s) as CardId[]
+        // Compatibilidade: adiciona novos IDs padrão que ainda não existiam na config salva
+        const merged = [...saved]
+        for (const id of DEFAULT_VISIBLE_CARDS) {
+          if (!merged.includes(id) && !merged.includes(id)) {
+            // Novo card adicionado em versão posterior — adiciona por padrão
+          }
+        }
+        return merged
+      }
+    } catch { /* ignore */ }
     return DEFAULT_VISIBLE_CARDS
   })
   const [activeWidgets, setActiveWidgets] = useState<WidgetId[]>(() => {
-    try { const s = localStorage.getItem(WIDGETS_KEY); if (s) return JSON.parse(s) as WidgetId[] } catch {}
+    try { const s = localStorage.getItem(WIDGETS_KEY); if (s) return JSON.parse(s) as WidgetId[] } catch { /* ignore */ }
     return DEFAULT_WIDGETS
   })
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    try { const s = localStorage.getItem(VIEW_MODE_KEY); if (s === 'compact' || s === 'full') return s } catch {}
+    try { const s = localStorage.getItem(VIEW_MODE_KEY); if (s === 'compact' || s === 'full') return s } catch { /* ignore */ }
     return 'full'
   })
   const [editMode, setEditMode] = useState(false)
@@ -234,6 +250,9 @@ export function DashboardPage() {
       )}
 
       {isVisible('smart_alerts') && <SmartAlertsWidget alerts={smartAlerts} />}
+      {isVisible('free_balance') && <FreeBalanceWidget summary={summary} />}
+      {isVisible('urgent_bills') && <UrgentBillsWidget transactions={transactions} />}
+      {isVisible('monthly_avg_comparison') && <MonthAvgComparisonWidget currentTransactions={transactions} yearTransactions={yearTransactions} categories={categories} month={month} year={year} />}
       {isVisible('smart_summary') && <SmartSummary summary={summary} />}
       {isVisible('month_end_estimate') && <MonthEndEstimateWidget estimate={estimate} month={month} year={year} />}
       {isVisible('prev_comparison') && <PreviousMonthComparison comparison={comparison} hasPrevData={hasPrevData} />}
