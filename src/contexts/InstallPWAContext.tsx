@@ -27,7 +27,7 @@ function detectPlatform(): Platform {
   const ua = navigator.userAgent
   const standalone =
     window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
   if (standalone) return 'installed'
   if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
     return 'ios'
@@ -44,6 +44,7 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
     if (platform === 'installed') return
 
     // Prompt já pode estar capturado antes do React montar (main.tsx)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (getInstallPrompt()) setHasPrompt(true)
 
     // Fallback: escuta beforeinstallprompt diretamente (se disparar após React montar)
@@ -100,6 +101,7 @@ export function InstallPWAProvider({ children }: { children: React.ReactNode }) 
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useInstallPWA() {
   return useContext(InstallPWAContext)
 }

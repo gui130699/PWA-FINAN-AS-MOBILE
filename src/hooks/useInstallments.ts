@@ -25,6 +25,7 @@ export function useInstallments() {
     }
   }, [user])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const create = async (data: Parameters<typeof createInstallmentGroupOfflineFirst>[1]) => {

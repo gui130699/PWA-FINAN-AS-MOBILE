@@ -1,12 +1,15 @@
 import { useState, useMemo } from 'react'
-import { FileText, FileSpreadsheet, Download } from 'lucide-react'
+import { FileText, FileSpreadsheet, Download, WifiOff } from 'lucide-react'
 import { Input } from '../components/ui/Input'
 import { Button } from '../components/ui/Button'
 import { PageLoader } from '../components/ui/Loading'
 import { useAuth } from '../contexts/AuthContext'
 import { useCategories } from '../hooks/useCategories'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { formatCurrency, formatDate, currentMonthYear } from '../utils/formatters'
 import { getTransactionsByRange } from '../services/firestore'
+import { getTransactionsByDateRange } from '../offline/offlineDb'
+import { Timestamp } from 'firebase/firestore'
 import { toast } from '../components/ui/Toast'
 import type { Transaction, TransactionNature } from '../types'
 import type { ExcelRowDetalhado, ExcelRowResumido } from '../utils/exportExcel'
@@ -33,9 +36,11 @@ export function ReportsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
+  const [isOfflineData, setIsOfflineData] = useState(false)
 
   const { user } = useAuth()
   const { categories } = useCategories()
+  const { isOnline } = useOnlineStatus()
 
   const catTypeMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -48,8 +53,37 @@ export function ReportsPage() {
     if (startDate > endDate) { return }
     setLoading(true)
     try {
+      if (!isOnline) {
+        // Modo offline: usa cache IndexedDB
+        const local = await getTransactionsByDateRange(user.uid, startDate, endDate)
+        const converted: Transaction[] = local.map((r) => ({
+          id: r.serverId ?? r.localId,
+          description: r.description,
+          value: r.value,
+          categoryId: r.categoryId,
+          categoryName: r.categoryName,
+          launchDate: r.launchDate,
+          chargeDate: r.chargeDate,
+          month: r.month,
+          year: r.year,
+          status: r.status as Transaction['status'],
+          type: r.type as Transaction['type'],
+          transactionNature: r.transactionNature as Transaction['transactionNature'],
+          fixedAccountId: r.fixedAccountId,
+          installmentGroupId: r.installmentGroupId,
+          installmentNumber: r.installmentNumber,
+          totalInstallments: r.totalInstallments,
+          createdAt: Timestamp.fromDate(new Date(r.createdAt)),
+          updatedAt: Timestamp.fromDate(new Date(r.updatedAt)),
+        }))
+        setTransactions(converted)
+        setIsOfflineData(true)
+        setSearched(true)
+        return
+      }
       const data = await getTransactionsByRange(user.uid, startDate, endDate)
       setTransactions(data)
+      setIsOfflineData(false)
       setSearched(true)
     } catch {
       setTransactions([])
@@ -172,6 +206,14 @@ export function ReportsPage() {
         <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
         <h1 className="text-xl font-bold text-slate-900 dark:text-white">Relatórios</h1>
       </div>
+
+      {/* Banner offline */}
+      {isOfflineData && searched && (
+        <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-xl px-4 py-3 text-sm">
+          <WifiOff className="w-4 h-4 shrink-0" />
+          <span>Relatório offline — exibindo dados já sincronizados neste dispositivo. Reconecte-se para ver todos os lançamentos.</span>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">

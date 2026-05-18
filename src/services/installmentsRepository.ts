@@ -19,7 +19,9 @@ import {
   softDeleteInstallmentGroup,
   addQueueItem,
   deleteLocalRecord,
+  getTransactionsByInstallmentGroupId,
 } from '../offline/offlineDb'
+import { addMonthsSafe } from '../utils/dateUtils'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -213,11 +215,69 @@ export async function deleteInstallmentGroupOfflineFirst(uid: string, groupId: s
   })
 }
 
-/** Busca parcelas de um grupo — apenas online. */
+/** Busca parcelas de um grupo — retorna do cache offline quando desconectado. */
 export async function getInstallmentTransactionsOfflineFirst(
   uid: string,
   groupId: string,
 ): Promise<Transaction[]> {
-  if (!navigator.onLine) return []
-  return fsGetTransactions(uid, groupId)
+  if (navigator.onLine) {
+    return fsGetTransactions(uid, groupId)
+  }
+
+  // Offline: tenta parcelas já cacheadas para grupos sincronizados
+  const cached = await getTransactionsByInstallmentGroupId(uid, groupId)
+  if (cached.length > 0) {
+    return cached.map((r) => ({
+      id: r.serverId ?? r.localId,
+      description: r.description,
+      value: r.value,
+      categoryId: r.categoryId,
+      categoryName: r.categoryName,
+      launchDate: r.launchDate,
+      chargeDate: r.chargeDate,
+      month: r.month,
+      year: r.year,
+      status: r.status as Transaction['status'],
+      type: r.type as Transaction['type'],
+      transactionNature: r.transactionNature as Transaction['transactionNature'],
+      installmentGroupId: r.installmentGroupId,
+      installmentNumber: r.installmentNumber,
+      totalInstallments: r.totalInstallments,
+      createdAt: Timestamp.fromDate(new Date(r.createdAt)),
+      updatedAt: Timestamp.fromDate(new Date(r.updatedAt)),
+    }))
+  }
+
+  // Grupo criado offline sem parcelas no cache: computa sob demanda
+  const local =
+    (await getInstallmentGroupByLocalId(groupId)) ??
+    (await getInstallmentGroupByServerId(uid, groupId))
+  if (!local) return []
+
+  const now = new Date().toISOString()
+  const transactions: Transaction[] = []
+  for (let i = 0; i < local.totalInstallments; i++) {
+    const chargeDate = addMonthsSafe(local.firstInstallmentDate, i)
+    const [yr, mo] = chargeDate.split('-').map(Number)
+    transactions.push({
+      id: `${local.localId}_inst_${i + 1}`,
+      description: `${local.description} (${i + 1}/${local.totalInstallments})`,
+      value: local.installmentValue,
+      categoryId: local.categoryId,
+      categoryName: local.categoryName,
+      launchDate: now.slice(0, 10),
+      chargeDate,
+      month: mo,
+      year: yr,
+      status: 'pending',
+      type: 'installment',
+      transactionNature: local.transactionNature as Transaction['transactionNature'],
+      installmentGroupId: local.localId,
+      installmentNumber: i + 1,
+      totalInstallments: local.totalInstallments,
+      createdAt: Timestamp.fromDate(new Date(now)),
+      updatedAt: Timestamp.fromDate(new Date(now)),
+    })
+  }
+  return transactions
 }

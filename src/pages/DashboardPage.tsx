@@ -58,8 +58,8 @@ import { SmartAlertsWidget } from '../components/dashboard/SmartAlertsWidget'
 import { FreeBalanceWidget } from '../components/dashboard/FreeBalanceWidget'
 import { UrgentBillsWidget } from '../components/dashboard/UrgentBillsWidget'
 import { MonthAvgComparisonWidget } from '../components/dashboard/MonthAvgComparisonWidget'
+import { DashboardCustomizeModal } from '../components/dashboard/DashboardCustomizeModal'
 import {
-  DashboardCustomizeModal,
   WIDGETS_KEY,
   VIEW_MODE_KEY,
   DEFAULT_WIDGETS,
@@ -69,7 +69,7 @@ import {
   type WidgetId,
   type ViewMode,
   type CardId,
-} from '../components/dashboard/DashboardCustomizeModal'
+} from '../components/dashboard/dashboardConfig'
 
 
 

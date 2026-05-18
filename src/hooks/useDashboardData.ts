@@ -63,6 +63,7 @@ export function useDashboardData(month: number, year: number): DashboardPeriodDa
     }
   }, [user, month, year, isOnline])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   // Recarrega após sincronização

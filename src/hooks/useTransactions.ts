@@ -28,6 +28,7 @@ export function useTransactions(month: number, year: number) {
     }
   }, [user, month, year])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   // Recarrega após sincronização bem-sucedida

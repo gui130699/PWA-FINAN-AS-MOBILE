@@ -25,6 +25,7 @@ export function useCategories() {
     }
   }, [user])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const add = async (data: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => {

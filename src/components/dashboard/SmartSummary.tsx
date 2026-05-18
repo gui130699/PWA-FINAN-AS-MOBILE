@@ -12,22 +12,20 @@ export function SmartSummary({ summary }: Props) {
   const { incTotal, incPaid, incPending, expTotal, expPaid, expPending, saldoAtual, saldoPrevisto, percentCompromised } = summary
 
   // Mensagem contextual principal
-  let mainMsg = ''
-  let mainLevel: 'positive' | 'warning' | 'negative' = 'positive'
+  const mainLevel: 'positive' | 'warning' | 'negative' =
+    saldoPrevisto < 0 ? 'negative' :
+    percentCompromised > 90 ? 'warning' :
+    saldoPrevisto > 0 ? 'positive' :
+    'warning'
 
-  if (saldoPrevisto < 0) {
-    mainMsg = `Seu saldo previsto está negativo em ${formatCurrency(Math.abs(saldoPrevisto))}. Atenção!`
-    mainLevel = 'negative'
-  } else if (percentCompromised > 90) {
-    mainMsg = `Você já comprometeu ${percentCompromised}% das receitas previstas deste mês.`
-    mainLevel = 'warning'
-  } else if (saldoPrevisto > 0) {
-    mainMsg = `Seu saldo previsto do mês é positivo em ${formatCurrency(saldoPrevisto)}.`
-    mainLevel = 'positive'
-  } else {
-    mainMsg = 'Receitas e despesas estão equilibradas neste mês.'
-    mainLevel = 'warning'
-  }
+  const mainMsg =
+    saldoPrevisto < 0
+      ? `Seu saldo previsto está negativo em ${formatCurrency(Math.abs(saldoPrevisto))}. Atenção!`
+      : percentCompromised > 90
+      ? `Você já comprometeu ${percentCompromised}% das receitas previstas deste mês.`
+      : saldoPrevisto > 0
+      ? `Seu saldo previsto do mês é positivo em ${formatCurrency(saldoPrevisto)}.`
+      : 'Receitas e despesas estão equilibradas neste mês.'
 
   const msgColors = {
     positive: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300',

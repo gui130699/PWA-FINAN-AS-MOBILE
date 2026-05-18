@@ -30,6 +30,9 @@ import {
 import {
   getDocs,
   collection,
+  doc,
+  setDoc,
+  updateDoc,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import type { Category, Transaction, FixedAccount, InstallmentGroup } from '../types'
@@ -153,6 +156,11 @@ export function MyDataPage() {
     let updated = 0
 
     try {
+      // Mapas de remapeamento: oldId → newId
+      const catIdMap = new Map<string, string>()
+      const faIdMap = new Map<string, string>()
+      const igIdMap = new Map<string, string>()
+
       // ── Categorias ────────────────────────────────────────────────────────
       const existingCats = await getCategories(user.uid)
       const existingCatIds = new Set(existingCats.map((c) => c.id))
@@ -160,9 +168,11 @@ export function MyDataPage() {
         const { id, ...fields } = cat
         if (existingCatIds.has(id)) {
           await updateCategory(user.uid, id, fields)
+          catIdMap.set(id, id)
           updated++
         } else {
-          await addCategory(user.uid, fields)
+          const newId = await addCategory(user.uid, fields)
+          catIdMap.set(id, newId)
           created++
         }
       }
@@ -174,23 +184,50 @@ export function MyDataPage() {
         const { id, ...fields } = fa
         if (existingFixedIds.has(id)) {
           await updateFixedAccount(user.uid, id, fields)
+          faIdMap.set(id, id)
           updated++
         } else {
-          await addFixedAccount(user.uid, fields)
+          const newId = await addFixedAccount(user.uid, fields)
+          faIdMap.set(id, newId)
           created++
         }
       }
 
-      // ── Transações ────────────────────────────────────────────────────────
+      // ── Parcelamentos (apenas o documento do grupo, sem gerar parcelas) ──
+      const existingGroups = await getInstallmentGroups(user.uid)
+      const existingGroupIds = new Set(existingGroups.map((g) => g.id))
+      for (const group of pendingBackup.data.installmentGroups) {
+        const { id, categoryId, ...fields } = group
+        const remappedCatId = catIdMap.get(categoryId) ?? categoryId
+        const groupData = { categoryId: remappedCatId, ...fields }
+        if (existingGroupIds.has(id)) {
+          await updateDoc(doc(db, `users/${user.uid}/installmentGroups/${id}`), groupData)
+          igIdMap.set(id, id)
+          updated++
+        } else {
+          const newRef = doc(collection(db, `users/${user.uid}/installmentGroups`))
+          await setDoc(newRef, groupData)
+          igIdMap.set(id, newRef.id)
+          created++
+        }
+      }
+
+      // ── Transações (com remapeamento de IDs) ──────────────────────────────
       const existingTxsSnap = await getDocs(collection(db, `users/${user.uid}/transactions`))
       const existingTxIds = new Set(existingTxsSnap.docs.map((d) => d.id))
       for (const tx of pendingBackup.data.transactions) {
-        const { id, ...fields } = tx
+        const { id, categoryId, fixedAccountId, installmentGroupId, ...rest } = tx
+        const remappedFields = {
+          ...rest,
+          categoryId: catIdMap.get(categoryId) ?? categoryId,
+          ...(fixedAccountId ? { fixedAccountId: faIdMap.get(fixedAccountId) ?? fixedAccountId } : {}),
+          ...(installmentGroupId ? { installmentGroupId: igIdMap.get(installmentGroupId) ?? installmentGroupId } : {}),
+        }
         if (existingTxIds.has(id)) {
-          await updateTransaction(user.uid, id, fields)
+          await updateTransaction(user.uid, id, remappedFields)
           updated++
         } else {
-          await addTransaction(user.uid, fields)
+          await addTransaction(user.uid, remappedFields)
           created++
         }
       }

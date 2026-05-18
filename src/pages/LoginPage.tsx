@@ -36,8 +36,9 @@ export function LoginPage() {
         toast.success('E-mail de recuperação enviado!')
         setMode('login')
       }
-    } catch (err: any) {
-      const msg = firebaseErrorMessage(err.code)
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code ?? ''
+      const msg = firebaseErrorMessage(code)
       toast.error(msg)
     } finally {
       setLoading(false)

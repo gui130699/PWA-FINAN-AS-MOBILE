@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
@@ -9,6 +9,7 @@ import { toast } from '../components/ui/Toast'
 import { useTransactions } from '../hooks/useTransactions'
 import { useCategories } from '../hooks/useCategories'
 import { useAuth } from '../contexts/AuthContext'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYear, todayISO } from '../utils/formatters'
 import { getErrorMessage } from '../utils/errorUtils'
 import {
@@ -108,6 +109,7 @@ export function TransactionsPage() {
   const { transactions, loading, update, remove, reload } = useTransactions(month, year)
   const { categories } = useCategories()
   const { user } = useAuth()
+  const { isOnline } = useOnlineStatus()
 
   const catTypeMap = useMemo(() => {
     const m = new Map<string, string>()
@@ -115,10 +117,10 @@ export function TransactionsPage() {
     return m
   }, [categories])
 
-  function getTxNature(t: Transaction): TransactionNature {
+  const getTxNature = useCallback((t: Transaction): TransactionNature => {
     if (t.transactionNature) return t.transactionNature
     return catTypeMap.get(t.categoryId) === 'income' ? 'income' : 'expense'
-  }
+  }, [catTypeMap])
 
   const filtered = transactions.filter((t) => {
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
@@ -151,7 +153,7 @@ export function TransactionsPage() {
       incPaid:    inc.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0),
       incPending: inc.filter((t) => t.status === 'pending').reduce((s, t) => s + t.value, 0),
     }
-  }, [transactions, catTypeMap])
+  }, [transactions, getTxNature])
 
   const handleDelete = async () => {
     if (!deleteId) return
@@ -237,6 +239,10 @@ export function TransactionsPage() {
 
   const handleGenerate = async () => {
     if (!user) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setGenLoading(true)
     try {
       const { created, skipped } = await generateFixedAccountsForMonth(user.uid, month, year)
@@ -251,6 +257,10 @@ export function TransactionsPage() {
 
   const handleCopyPrev = async () => {
     if (!user) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setCopyPrevLoading(true)
     try {
       const { copied, skipped } = await copyPendingFromPreviousMonth(user.uid, month, year)
@@ -657,6 +667,7 @@ export function TransactionsPage() {
         open={genYearOpen}
         onClose={() => setGenYearOpen(false)}
         uid={user?.uid ?? ''}
+        isOnline={isOnline}
         onDone={() => { setGenYearOpen(false); reload() }}
       />
 
@@ -684,7 +695,10 @@ function CategoryFilterModal({ open, onClose, categories, selectedIds, onChange 
   const [draft, setDraft] = useState<string[]>(selectedIds)
 
   useEffect(() => {
-    if (open) setDraft(selectedIds)
+    if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDraft(selectedIds)
+    }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(id: string) {
@@ -826,10 +840,10 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
   }
 
   // Initialize form when modal opens
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return
     if (editItem) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescription(editItem.description)
       setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
       setCategoryId(editItem.categoryId)
@@ -1273,7 +1287,7 @@ function BringBalanceModal({ open, onClose, categories, catId, onCatChange, onCo
 }
 
 // ─── Gen Year Modal ───────────────────────────────────────────────────────────
-function GenYearModal({ open, onClose, uid, onDone }: { open: boolean; onClose: () => void; uid: string; onDone: () => void }) {
+function GenYearModal({ open, onClose, uid, isOnline, onDone }: { open: boolean; onClose: () => void; uid: string; isOnline: boolean; onDone: () => void }) {
   const currentYear = new Date().getFullYear()
   const yearOptions = Array.from({ length: 10 }, (_, i) => currentYear + i)
   const [selected, setSelected] = useState<number[]>([currentYear])
@@ -1284,6 +1298,10 @@ function GenYearModal({ open, onClose, uid, onDone }: { open: boolean; onClose: 
 
   const handleConfirm = async () => {
     if (!uid || selected.length === 0) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setLoading(true)
     try {
       const { created, skipped } = await generateFixedAccountsForYear(uid, selected)

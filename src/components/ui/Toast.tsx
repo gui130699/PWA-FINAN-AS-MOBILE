@@ -62,6 +62,7 @@ export function ToastContainer() {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const toast = {
   success: (msg: string) => globalToast?.(msg, 'success'),
   error: (msg: string) => globalToast?.(msg, 'error'),

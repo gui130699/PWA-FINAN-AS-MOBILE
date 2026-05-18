@@ -25,6 +25,7 @@ export function useFixedAccounts() {
     }
   }, [user])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const add = async (data: Omit<FixedAccount, 'id' | 'createdAt' | 'updatedAt'>) => {

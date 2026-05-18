@@ -11,6 +11,7 @@ import { formatCurrency, formatCurrencyInput, parseCurrencyInput, currentMonthYe
 import { getErrorMessage } from '../utils/errorUtils'
 import { updateFixedAccountStartDate, deleteFixedAccountWithPending } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { WEEK_DAY_LABELS } from '../types'
 import type { FixedAccount, RecurrenceType, TransactionNature } from '../types'
 
@@ -18,6 +19,7 @@ export function FixedAccountsPage() {
   const { accounts, loading, add, update, remove } = useFixedAccounts()
   const { categories } = useCategories()
   const { user } = useAuth()
+  const { isOnline } = useOnlineStatus()
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<FixedAccount | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<FixedAccount | null>(null)
@@ -25,6 +27,10 @@ export function FixedAccountsPage() {
 
   const handleDelete = async (alsoDeletePending: boolean) => {
     if (!deleteTarget || !user) return
+    if (alsoDeletePending && !isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setDelLoading(true)
     try {
       await deleteFixedAccountWithPending(user.uid, deleteTarget.id, alsoDeletePending)
@@ -252,10 +258,10 @@ function FixedAccountModal({ open, onClose, onSaved, editItem, categories, onAdd
   }
 
   // Initialize form when modal opens
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return
     if (editItem) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescription(editItem.description)
       setValueStr(formatCurrencyInput(String(Math.round(editItem.value * 100))))
       setCategoryId(editItem.categoryId)

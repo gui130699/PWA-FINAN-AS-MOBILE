@@ -181,6 +181,7 @@ function CategoryModal({ open, onClose, onSaved, editItem, onAdd, onUpdate, used
   useEffect(() => {
     if (!open) return
     if (editItem) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(editItem.name)
       setColor(editItem.color)
       setType(editItem.type)

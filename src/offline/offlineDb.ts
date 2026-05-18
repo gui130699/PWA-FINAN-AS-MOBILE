@@ -320,3 +320,30 @@ export async function getPendingCount(uid: string): Promise<number> {
   return items.length
 }
 
+// ─── Transactions extra queries ───────────────────────────────────────────────
+
+/** Retorna transações locais de um grupo de parcelamento (para UI offline). */
+export async function getTransactionsByInstallmentGroupId(
+  uid: string,
+  groupId: string,
+): Promise<LocalTransaction[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('transactions_cache', 'readonly')
+  const all = (await idbReq(tx.objectStore('transactions_cache').index('by_uid').getAll(uid))) as LocalTransaction[]
+  return all.filter((r) => !r.deleted && r.installmentGroupId === groupId)
+}
+
+/** Retorna transações locais por intervalo de data de cobrança (para relatórios offline). */
+export async function getTransactionsByDateRange(
+  uid: string,
+  startDate: string,
+  endDate: string,
+): Promise<LocalTransaction[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('transactions_cache', 'readonly')
+  const all = (await idbReq(tx.objectStore('transactions_cache').index('by_uid').getAll(uid))) as LocalTransaction[]
+  return all.filter(
+    (r) => !r.deleted && r.chargeDate >= startDate && r.chargeDate <= endDate,
+  )
+}
+

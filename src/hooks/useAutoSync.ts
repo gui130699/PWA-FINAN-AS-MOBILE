@@ -31,6 +31,7 @@ export function useAutoSync() {
   // Sincroniza ao voltar online
   useEffect(() => {
     if (isOnline) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       sync()
     } else {
       refreshCount()
@@ -39,6 +40,7 @@ export function useAutoSync() {
 
   // Verifica contagem inicial ao montar
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshCount()
   }, [refreshCount])
 

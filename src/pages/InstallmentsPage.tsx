@@ -8,6 +8,7 @@ import { useInstallments } from '../hooks/useInstallments'
 import { formatCurrency, formatDate } from '../utils/formatters'
 import { settleAllInstallments, deleteFuturePendingInstallments } from '../services/firestore'
 import { useAuth } from '../contexts/AuthContext'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { getErrorMessage } from '../utils/errorUtils'
 import type { InstallmentGroup, Transaction } from '../types'
 
@@ -20,6 +21,7 @@ const statusConfig = {
 export function InstallmentsPage() {
   const { groups, loading, remove, getTransactions, payInstallment, reload } = useInstallments()
   const { user } = useAuth()
+  const { isOnline } = useOnlineStatus()
   const [selectedGroup, setSelectedGroup] = useState<InstallmentGroup | null>(null)
   const [groupTransactions, setGroupTransactions] = useState<Transaction[]>([])
   const [detailOpen, setDetailOpen] = useState(false)
@@ -58,6 +60,10 @@ export function InstallmentsPage() {
 
   const handleDeleteFuturePending = async () => {
     if (!deleteTarget || !user) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setDelLoading(true)
     try {
       const { deleted } = await deleteFuturePendingInstallments(user.uid, deleteTarget.id)
@@ -73,6 +79,10 @@ export function InstallmentsPage() {
 
   const handleSettleAll = async (group: InstallmentGroup) => {
     if (!user) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setSettleLoading(true)
     try {
       const { settled } = await settleAllInstallments(user.uid, group.id)
