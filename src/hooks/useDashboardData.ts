@@ -22,7 +22,7 @@ export interface DashboardPeriodData {
 
 export function useDashboardData(month: number, year: number): DashboardPeriodData {
   const { user } = useAuth()
-  const isOnline  = useOnlineStatus()
+  const { isOnline } = useOnlineStatus()
 
   const [yearTransactions, setYearTransactions] = useState<Transaction[]>([])
   const [prevMonthTransactions, setPrevMonthTransactions] = useState<Transaction[]>([])

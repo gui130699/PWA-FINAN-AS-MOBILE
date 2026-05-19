@@ -36,6 +36,7 @@ import {
   deleteFixedAccount,
   createInstallmentGroup,
   deleteInstallmentGroup,
+  getInstallmentGroups as fsGetInstallmentGroups,
 } from '../services/firestore'
 import type { Transaction, Category, FixedAccount } from '../types'
 
@@ -175,18 +176,51 @@ async function processItem(item: SyncQueueItem): Promise<void> {
       if (item.action === 'create') {
         const local = await getInstallmentGroupByLocalId(item.localId)
         if (local?.deleted) {
+          // Grupo marcado como deleted antes de sincronizar: limpa parcelas temporárias e cancela
+          for (let i = 1; i <= (local.totalInstallments ?? 0); i++) {
+            await deleteLocalRecord('transactions_cache', `${local.localId}_inst_${i}`)
+          }
           await deleteLocalRecord('installment_groups_cache', item.localId)
           await removeQueueItem(item.id)
           return
         }
         const payload = item.payload as Parameters<typeof createInstallmentGroup>[1]
-        await createInstallmentGroup(item.uid, payload)
+        const serverId = await createInstallmentGroup(item.uid, payload)
         if (local) {
-          await putInstallmentGroup({
-            ...local,
-            syncStatus: 'synced',
-            lastModifiedAt: new Date().toISOString(),
-          })
+          // Tenta buscar grupo atualizado do Firestore para obter stats reais
+          let updatedGroup = { ...local, serverId, syncStatus: 'synced' as const, lastModifiedAt: new Date().toISOString() }
+          try {
+            const freshGroups = await fsGetInstallmentGroups(item.uid)
+            const fresh = freshGroups.find((g) => g.id === serverId)
+            if (fresh) {
+              updatedGroup = {
+                ...local,
+                serverId: fresh.id,
+                syncStatus: 'synced' as const,
+                lastModifiedAt: new Date().toISOString(),
+                description: fresh.description,
+                categoryId: fresh.categoryId,
+                categoryName: fresh.categoryName,
+                totalValue: fresh.totalValue,
+                installmentValue: fresh.installmentValue,
+                totalInstallments: fresh.totalInstallments,
+                firstInstallmentDate: fresh.firstInstallmentDate,
+                lastInstallmentDate: fresh.lastInstallmentDate,
+                paidInstallments: fresh.paidInstallments,
+                pendingInstallments: fresh.pendingInstallments,
+                paidValue: fresh.paidValue,
+                remainingValue: fresh.remainingValue,
+                status: fresh.status as typeof local.status,
+                transactionNature: fresh.transactionNature as typeof local.transactionNature,
+              }
+            }
+          } catch { /* usa dados locais com serverId */ }
+          await putInstallmentGroup(updatedGroup)
+
+          // Remove as parcelas offline temporárias (serão recarregadas do Firestore via financeSync)
+          for (let i = 1; i <= local.totalInstallments; i++) {
+            await deleteLocalRecord('transactions_cache', `${local.localId}_inst_${i}`)
+          }
         }
         await removeQueueItem(item.id)
       } else if (item.action === 'update') {

@@ -19,6 +19,11 @@ import {
   copyPendingFromPreviousMonth,
   updateInstallmentCascade,
   bringPreviousMonthBalance,
+  deleteFutureFixedTransactions,
+  deleteFutureInstallmentTransactions,
+  updateTransaction,
+  addFixedAccount,
+  addTransaction,
 } from '../services/firestore'
 import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, TransactionNature } from '../types'
 import { WEEK_DAY_LABELS } from '../types'
@@ -174,7 +179,6 @@ export function TransactionsPage() {
     if (!deleteTarget || !user) return
     setDelFutureLoading(true)
     try {
-      const { deleteFutureFixedTransactions, deleteFutureInstallmentTransactions } = await import('../services/firestore')
       if (deleteTarget.type === 'fixed' && deleteTarget.fixedAccountId) {
         const { deleted } = await deleteFutureFixedTransactions(user.uid, deleteTarget.fixedAccountId, deleteTarget.chargeDate)
         if (deleted === 0) toast.info('Nenhum lançamento pendente futuro encontrado.')
@@ -873,7 +877,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
       if (editItem) {
         if (type === 'normal' && !launchDate) { toast.error('Informe a data do lançamento'); return }
         const { month, year } = getMonthYear(chargeDate)
-        const { updateTransaction } = await import('../services/firestore')
         await updateTransaction(user.uid, editItem.id, {
           description,
           value,
@@ -919,7 +922,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
         const isWeekly = recurrenceType === 'weekly'
         if (isWeekly) {
           // Conta semanal: não precisa de data, usa dia da semana
-          const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
           await addFixedAccount(user.uid, {
             description,
             value,
@@ -937,7 +939,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           toast.success('Conta fixa semanal cadastrada!')
         } else {
           if (!chargeDate) { toast.error('Informe a data da primeira cobran\u00e7a'); return }
-          const { addFixedAccount, generateFixedAccountsForMonth } = await import('../services/firestore')
           const [chargeYearStr, chargeMonthStr, chargeDayStr] = chargeDate.split('-')
           const day = parseInt(chargeDayStr)
           const startMonth = parseInt(chargeMonthStr)
@@ -972,7 +973,6 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           type: 'normal' as const,
           transactionNature: transactionNature,
         }
-        const { addTransaction } = await import('../services/firestore')
         await addTransaction(user.uid, payload)
         toast.success('Lançamento criado!')
       }

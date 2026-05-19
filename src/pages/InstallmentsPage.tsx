@@ -106,6 +106,10 @@ export function InstallmentsPage() {
 
   const handlePayInstallment = async (transaction: Transaction) => {
     if (!selectedGroup) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     try {
       await payInstallment(transaction.id)
       const txs = await getTransactions(selectedGroup.id)

@@ -13,11 +13,14 @@ import {
 } from './firestore'
 import {
   putInstallmentGroup,
+  putTransaction,
   getInstallmentGroups as dbGetGroups,
   getInstallmentGroupByLocalId,
   getInstallmentGroupByServerId,
   softDeleteInstallmentGroup,
   addQueueItem,
+  removeQueueItem,
+  getPendingQueue,
   deleteLocalRecord,
   getTransactionsByInstallmentGroupId,
 } from '../offline/offlineDb'
@@ -129,18 +132,17 @@ export async function createInstallmentGroupOfflineFirst(
   if (navigator.onLine) {
     try {
       const id = await fsCreate(uid, data)
-      // Recarrega o grupo criado do Firestore para pegar stats
-      const { getInstallmentGroups: fsGet } = await import('./firestore')
-      const groups = await fsGet(uid)
+      // Recarrega o grupo criado do Firestore para pegar stats reais
+      const groups = await fsGetGroups(uid)
       const created = groups.find((g) => g.id === id)
       if (created) await putInstallmentGroup(igToLocal(created, uid))
       return id
     } catch { /* cai para offline */ }
   }
-  // Modo offline: cria entrada local sem parcelas (será sincronizado)
+  // Modo offline: cria grupo local + parcelas no cache (para exibir na tela de lançamentos)
   const localId = genId()
   const now = new Date().toISOString()
-  const lastDate = data.firstInstallmentDate // simplificado offline
+  const lastInstallmentDate = addMonthsSafe(data.firstInstallmentDate, data.totalInstallments - 1)
   await putInstallmentGroup({
     localId,
     serverId: undefined,
@@ -155,7 +157,7 @@ export async function createInstallmentGroupOfflineFirst(
     installmentValue: data.installmentValue,
     totalInstallments: data.totalInstallments,
     firstInstallmentDate: data.firstInstallmentDate,
-    lastInstallmentDate: lastDate,
+    lastInstallmentDate,
     paidInstallments: 0,
     pendingInstallments: data.totalInstallments,
     paidValue: 0,
@@ -165,6 +167,37 @@ export async function createInstallmentGroupOfflineFirst(
     createdAt: now,
     updatedAt: now,
   })
+
+  // Cria parcelas locais para que apareçam na tela de lançamentos por mês
+  for (let i = 0; i < data.totalInstallments; i++) {
+    const chargeDate = addMonthsSafe(data.firstInstallmentDate, i)
+    const [yr, mo] = chargeDate.split('-').map(Number)
+    await putTransaction({
+      localId: `${localId}_inst_${i + 1}`,
+      serverId: undefined,
+      uid,
+      syncStatus: 'pending',
+      lastModifiedAt: now,
+      deleted: false,
+      description: `${data.description} ${i + 1}/${data.totalInstallments}`,
+      value: data.installmentValue,
+      categoryId: data.categoryId,
+      categoryName: data.categoryName,
+      launchDate: now.slice(0, 10),
+      chargeDate,
+      month: mo,
+      year: yr,
+      status: 'pending',
+      type: 'installment',
+      transactionNature: data.transactionNature,
+      installmentGroupId: localId,
+      installmentNumber: i + 1,
+      totalInstallments: data.totalInstallments,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+
   const queueItem: SyncQueueItem = {
     id: genId(),
     uid,
@@ -198,6 +231,27 @@ export async function deleteInstallmentGroupOfflineFirst(uid: string, groupId: s
     await getInstallmentGroupByServerId(uid, groupId) ??
     await getInstallmentGroupByLocalId(groupId)
   if (!existing) return
+
+  // Grupo criado offline e nunca sincronizado: cancela o create e limpa imediatamente
+  if (!existing.serverId) {
+    // Remove as parcelas temporárias locais do cache
+    for (let i = 1; i <= existing.totalInstallments; i++) {
+      await deleteLocalRecord('transactions_cache', `${existing.localId}_inst_${i}`)
+    }
+    // Cancela o item de create pendente na fila (nada foi enviado ao Firestore)
+    const queue = await getPendingQueue(uid)
+    const createItem = queue.find(
+      (q) => q.collection === 'installmentGroups' && q.action === 'create' && q.localId === existing.localId,
+    )
+    if (createItem) {
+      await removeQueueItem(createItem.id)
+    }
+    // Remove o registro local do grupo
+    await deleteLocalRecord('installment_groups_cache', existing.localId)
+    return
+  }
+
+  // Grupo já sincronizado com Firestore: soft delete + fila de delete
   await softDeleteInstallmentGroup(existing.localId)
   const now = new Date().toISOString()
   await addQueueItem({

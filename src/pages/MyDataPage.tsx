@@ -15,6 +15,7 @@ import { Modal } from '../components/ui/Modal'
 import { PageLoader } from '../components/ui/Loading'
 import { toast } from '../components/ui/Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { getErrorMessage } from '../utils/errorUtils'
 import {
   getCategories,
@@ -70,16 +71,28 @@ function toExportable(obj: unknown): unknown {
   return obj
 }
 
+interface ImportStats {
+  cats: { created: number; updated: number }
+  fixedAccounts: { created: number; updated: number }
+  installmentGroups: { created: number; updated: number }
+  transactions: { created: number; updated: number }
+}
+
 export function MyDataPage() {
   const { user } = useAuth()
+  const { isOnline } = useOnlineStatus()
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importConfirmOpen, setImportConfirmOpen] = useState(false)
   const [pendingBackup, setPendingBackup] = useState<BackupFile | null>(null)
-  const [importStats, setImportStats] = useState<{ created: number; updated: number } | null>(null)
+  const [importStats, setImportStats] = useState<ImportStats | null>(null)
 
   const handleExport = async () => {
     if (!user) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setExporting(true)
     try {
       const [categories, transactions, fixedAccounts, installmentGroups] = await Promise.all([
@@ -150,10 +163,18 @@ export function MyDataPage() {
 
   const handleImport = async () => {
     if (!user || !pendingBackup) return
+    if (!isOnline) {
+      toast.error('Esta ação precisa de internet para garantir a segurança dos dados.')
+      return
+    }
     setImporting(true)
     setImportConfirmOpen(false)
-    let created = 0
-    let updated = 0
+    const stats: ImportStats = {
+      cats: { created: 0, updated: 0 },
+      fixedAccounts: { created: 0, updated: 0 },
+      installmentGroups: { created: 0, updated: 0 },
+      transactions: { created: 0, updated: 0 },
+    }
 
     try {
       // Mapas de remapeamento: oldId → newId
@@ -169,11 +190,11 @@ export function MyDataPage() {
         if (existingCatIds.has(id)) {
           await updateCategory(user.uid, id, fields)
           catIdMap.set(id, id)
-          updated++
+          stats.cats.updated++
         } else {
           const newId = await addCategory(user.uid, fields)
           catIdMap.set(id, newId)
-          created++
+          stats.cats.created++
         }
       }
 
@@ -185,11 +206,11 @@ export function MyDataPage() {
         if (existingFixedIds.has(id)) {
           await updateFixedAccount(user.uid, id, fields)
           faIdMap.set(id, id)
-          updated++
+          stats.fixedAccounts.updated++
         } else {
           const newId = await addFixedAccount(user.uid, fields)
           faIdMap.set(id, newId)
-          created++
+          stats.fixedAccounts.created++
         }
       }
 
@@ -203,12 +224,12 @@ export function MyDataPage() {
         if (existingGroupIds.has(id)) {
           await updateDoc(doc(db, `users/${user.uid}/installmentGroups/${id}`), groupData)
           igIdMap.set(id, id)
-          updated++
+          stats.installmentGroups.updated++
         } else {
           const newRef = doc(collection(db, `users/${user.uid}/installmentGroups`))
           await setDoc(newRef, groupData)
           igIdMap.set(id, newRef.id)
-          created++
+          stats.installmentGroups.created++
         }
       }
 
@@ -225,15 +246,17 @@ export function MyDataPage() {
         }
         if (existingTxIds.has(id)) {
           await updateTransaction(user.uid, id, remappedFields)
-          updated++
+          stats.transactions.updated++
         } else {
           await addTransaction(user.uid, remappedFields)
-          created++
+          stats.transactions.created++
         }
       }
 
-      setImportStats({ created, updated })
-      toast.success(`Importação concluída! ${created} itens criados, ${updated} atualizados.`)
+      setImportStats(stats)
+      const totalCreated = stats.cats.created + stats.fixedAccounts.created + stats.installmentGroups.created + stats.transactions.created
+      const totalUpdated = stats.cats.updated + stats.fixedAccounts.updated + stats.installmentGroups.updated + stats.transactions.updated
+      toast.success(`Importação concluída! ${totalCreated} criados, ${totalUpdated} atualizados.`)
     } catch (err) {
       toast.error(`Erro na importação: ${getErrorMessage(err)}`)
     } finally {
@@ -317,9 +340,13 @@ export function MyDataPage() {
         {importStats && !importing && (
           <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-3 flex items-start gap-2">
             <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">
-              Última importação: <strong>{importStats.created}</strong> criados, <strong>{importStats.updated}</strong> atualizados.
-            </p>
+            <div className="text-xs text-emerald-700 dark:text-emerald-300 flex flex-col gap-0.5">
+              <p className="font-semibold mb-1">Última importação:</p>
+              <p>Categorias: <strong>{importStats.cats.created}</strong> criadas, <strong>{importStats.cats.updated}</strong> atualizadas</p>
+              <p>Contas fixas: <strong>{importStats.fixedAccounts.created}</strong> criadas, <strong>{importStats.fixedAccounts.updated}</strong> atualizadas</p>
+              <p>Parcelamentos: <strong>{importStats.installmentGroups.created}</strong> criados, <strong>{importStats.installmentGroups.updated}</strong> atualizados</p>
+              <p>Lançamentos: <strong>{importStats.transactions.created}</strong> criados, <strong>{importStats.transactions.updated}</strong> atualizados</p>
+            </div>
           </div>
         )}
       </div>

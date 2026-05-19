@@ -21,6 +21,7 @@ import {
   getCategoryByServerId,
   softDeleteCategory,
   addQueueItem,
+  deleteLocalRecord,
 } from '../offline/offlineDb'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -197,7 +198,6 @@ export async function deleteCategoryOfflineFirst(uid: string, id: string): Promi
       await fsDelete(uid, id)
       const existing = await getCategoryByServerId(uid, id) ?? await getCategoryByLocalId(id)
       if (existing) {
-        const { deleteLocalRecord } = await import('../offline/offlineDb')
         await deleteLocalRecord('categories_cache', existing.localId)
       }
       return
