@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Mic, MicOff, Zap, Save, Eye, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
