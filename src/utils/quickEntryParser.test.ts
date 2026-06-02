@@ -188,6 +188,13 @@ describe('parseQuickEntryText — números por extenso', () => {
     expect(result.transactionNature).toBe('income')
   })
 
+  it('gastei onze e noventa e nove no mercado hoje', () => {
+    const result = parseQuickEntryText('gastei onze e noventa e nove no mercado hoje', { categories: mockCategories })
+    expect(result.parsedValue).toBe(11.99)
+    expect(result.transactionNature).toBe('expense')
+    expect(result.missingFields).not.toContain('value')
+  })
+
   it('anota oitenta da farmácia ontem — por extenso', () => {
     const result = parseQuickEntryText('anota oitenta da farmácia ontem', { categories: mockCategories })
     expect(result.parsedValue).toBe(80)

@@ -265,8 +265,13 @@ function tokensToNumber(toks: string[]): number {
 /**
  * Encontra todas as sequências de palavras numéricas em um array de tokens.
  * Ignora tokens cujos índices estejam em dateIndices (contexto de data).
- * Uma sequência cresce enquanto há palavras numéricas diretamente consecutivas
- * ou conectadas por "e".
+ *
+ * Uma sequência cresce enquanto cada novo valor é MENOR que o anterior
+ * (hierarquia decrescente do português: mil > centenas > dezenas > unidades).
+ * Ex: "cento e vinte e dois" → [100, 20, 2] — todos decrescentes ✓
+ * Ex: "onze e noventa" → 90 > 11 → QUEBRA em duas sequências (não é inteiro válido)
+ *
+ * "mil" é sempre permitido como multiplicador.
  */
 function findNumberWordSequences(
   tokens: string[],
@@ -278,23 +283,51 @@ function findNumberWordSequences(
     if (!dateIndices.has(i) && isNumberWord(tokens[i])) {
       const startIdx = i
       const seqTokens: string[] = [tokens[i]]
+      // Rastreia o último valor adicionado para garantir hierarquia decrescente
+      let lastTerm = tokens[i] === 'mil' ? 1000 : PT_WORDS[tokens[i]]
       let j = i + 1
       while (j < tokens.length) {
         const tok = tokens[j]
-        // "e" seguido de palavra numérica → continua
+        // "e" seguido de palavra numérica
         if (
           tok === 'e' &&
           j + 1 < tokens.length &&
           !dateIndices.has(j + 1) &&
           isNumberWord(tokens[j + 1])
         ) {
-          seqTokens.push('e')
-          seqTokens.push(tokens[j + 1])
-          j += 2
+          const nextTok = tokens[j + 1]
+          if (nextTok === 'mil') {
+            // "mil" é multiplicativo: sempre permitido
+            seqTokens.push('e', nextTok)
+            lastTerm = 1000
+            j += 2
+          } else {
+            const nextVal = PT_WORDS[nextTok]
+            // Continua apenas se o próximo valor é menor (hierarquia decrescente)
+            if (nextVal < lastTerm) {
+              seqTokens.push('e', nextTok)
+              lastTerm = nextVal
+              j += 2
+            } else {
+              break
+            }
+          }
         } else if (!dateIndices.has(j) && isNumberWord(tok)) {
           // Palavra numérica diretamente consecutiva (ex: "dois mil")
-          seqTokens.push(tok)
-          j++
+          if (tok === 'mil') {
+            seqTokens.push(tok)
+            lastTerm = 1000
+            j++
+          } else {
+            const val = PT_WORDS[tok]
+            if (val < lastTerm) {
+              seqTokens.push(tok)
+              lastTerm = val
+              j++
+            } else {
+              break
+            }
+          }
         } else {
           break
         }
@@ -371,12 +404,16 @@ export function parsePortugueseNumberWordsToNumber(text: string): number | null 
   const isCentavos =
     toksAfterSecond.length > 0 &&
     (toksAfterSecond[0] === 'centavos' || toksAfterSecond[0] === 'centavo')
+  // "e" como único separador + seq2 < 100 → "X reais e Y centavos" falado naturalmente
+  // Ex: "onze e noventa e nove" → 11.99 (90 > 11 causou quebra, é decimal implícito)
+  const seq2Val = tokensToNumber(sequences[1].tokens)
+  const isEDecimal = toksBetween.length === 1 && toksBetween[0] === 'e' && seq2Val < 100
 
-  if (isVirgula || isCom || isCentavos) {
+  if (isVirgula || isCom || isCentavos || isEDecimal) {
     const intPart = tokensToNumber(sequences[0].tokens)
-    const decRaw = tokensToNumber(sequences[1].tokens)
-    // Para centavos: sempre /100 | Para vírgula/com: 1-9 → /10; 10-99 → /100
-    const decPart = isCentavos || decRaw >= 10 ? decRaw / 100 : decRaw / 10
+    const decRaw = isEDecimal ? seq2Val : tokensToNumber(sequences[1].tokens)
+    // Para centavos/E-decimal: sempre /100 | Para vírgula/com: 1-9 → /10; 10-99 → /100
+    const decPart = isCentavos || isEDecimal || decRaw >= 10 ? decRaw / 100 : decRaw / 10
     return parseFloat((intPart + decPart).toFixed(2))
   }
 
