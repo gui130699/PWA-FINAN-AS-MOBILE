@@ -13,6 +13,7 @@ import { CategoriesPage } from './pages/CategoriesPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { HelpPage } from './pages/HelpPage'
 import { MyDataPage } from './pages/MyDataPage'
+import { QuickEntryPage } from './pages/QuickEntryPage'
 import { SplashScreen } from './components/ui/SplashScreen'
 import { PWAUpdateBanner } from './components/ui/PWAUpdateBanner'
 import React from 'react'
@@ -43,6 +44,7 @@ function AppRoutes() {
       <Route path="/reports" element={<PrivateRoute><ReportsPage /></PrivateRoute>} />
       <Route path="/my-data" element={<PrivateRoute><MyDataPage /></PrivateRoute>} />
       <Route path="/help" element={<PrivateRoute><HelpPage /></PrivateRoute>} />
+      <Route path="/quick-entry" element={<PrivateRoute><QuickEntryPage /></PrivateRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

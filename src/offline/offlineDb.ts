@@ -14,11 +14,12 @@ import type {
   LocalCategory,
   LocalFixedAccount,
   LocalInstallmentGroup,
+  LocalQuickEntryDraft,
   SyncQueueItem,
 } from '../types/offline'
 
 const DB_NAME = 'finance_offline_db'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let _db: IDBDatabase | null = null
 
@@ -64,6 +65,14 @@ export async function openOfflineDb(): Promise<IDBDatabase> {
         s.createIndex('by_uid', 'uid')
         s.createIndex('by_uid_status', ['uid', 'status'])
         s.createIndex('by_createdAt', 'createdAt')
+      }
+
+      if (!db.objectStoreNames.contains('quick_entry_drafts_cache')) {
+        const s = db.createObjectStore('quick_entry_drafts_cache', { keyPath: 'localId' })
+        s.createIndex('by_uid', 'uid')
+        s.createIndex('by_serverId', 'serverId')
+        s.createIndex('by_uid_status', ['uid', 'status'])
+        s.createIndex('by_syncStatus', 'syncStatus')
       }
     }
 
@@ -345,5 +354,65 @@ export async function getTransactionsByDateRange(
   return all.filter(
     (r) => !r.deleted && r.chargeDate >= startDate && r.chargeDate <= endDate,
   )
+}
+
+// ─── Quick Entry Drafts ───────────────────────────────────────────────────────
+
+export async function putQuickEntryDraft(record: LocalQuickEntryDraft): Promise<void> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('quick_entry_drafts_cache', 'readwrite')
+  await idbReq(tx.objectStore('quick_entry_drafts_cache').put(record))
+}
+
+export async function getQuickEntryDraftsByUid(uid: string): Promise<LocalQuickEntryDraft[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('quick_entry_drafts_cache', 'readonly')
+  const all = (await idbReq(
+    tx.objectStore('quick_entry_drafts_cache').index('by_uid').getAll(uid),
+  )) as LocalQuickEntryDraft[]
+  return all
+    .filter((r) => !r.deleted)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export async function getPendingQuickEntryDrafts(uid: string): Promise<LocalQuickEntryDraft[]> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('quick_entry_drafts_cache', 'readonly')
+  const index = tx.objectStore('quick_entry_drafts_cache').index('by_uid_status')
+  const all = (await idbReq(
+    index.getAll(IDBKeyRange.only([uid, 'pending_review'])),
+  )) as LocalQuickEntryDraft[]
+  return all
+    .filter((r) => !r.deleted)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export async function getQuickEntryDraftByLocalId(localId: string): Promise<LocalQuickEntryDraft | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('quick_entry_drafts_cache', 'readonly')
+  const result = await idbReq(tx.objectStore('quick_entry_drafts_cache').get(localId))
+  return result as LocalQuickEntryDraft | undefined
+}
+
+export async function getQuickEntryDraftByServerId(
+  uid: string,
+  serverId: string,
+): Promise<LocalQuickEntryDraft | undefined> {
+  const db = await openOfflineDb()
+  const tx = db.transaction('quick_entry_drafts_cache', 'readonly')
+  const index = tx.objectStore('quick_entry_drafts_cache').index('by_serverId')
+  const results = (await idbReq(index.getAll(serverId))) as LocalQuickEntryDraft[]
+  return results.find((r) => r.uid === uid)
+}
+
+export async function softDeleteQuickEntryDraft(localId: string): Promise<void> {
+  const existing = await getQuickEntryDraftByLocalId(localId)
+  if (!existing) return
+  await putQuickEntryDraft({
+    ...existing,
+    deleted: true,
+    syncStatus: 'pending',
+    lastModifiedAt: new Date().toISOString(),
+  })
 }
 

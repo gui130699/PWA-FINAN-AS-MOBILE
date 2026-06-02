@@ -9,6 +9,7 @@ export type SyncCollection =
   | 'categories'
   | 'fixedAccounts'
   | 'installmentGroups'
+  | 'quickEntryDrafts'
 
 export interface SyncQueueItem {
   id: string
@@ -124,6 +125,44 @@ export interface LocalInstallmentGroup {
   remainingValue: number
   status: string
   transactionNature?: string
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Rascunho de entrada rápida armazenado no IndexedDB local.
+ */
+export interface LocalQuickEntryDraft {
+  localId: string
+  serverId?: string
+  uid: string
+  syncStatus: SyncStatus
+  lastModifiedAt: string
+  deleted?: boolean
+
+  source: string
+  messageType: string
+
+  rawText: string
+  transcript?: string | null
+
+  parsedValue?: number | null
+  parsedPlace?: string | null
+  parsedDescription?: string | null
+  parsedDate?: string | null
+
+  suggestedCategoryId?: string | null
+  suggestedCategoryName?: string | null
+
+  transactionNature: string
+  status: string
+
+  confidence: number
+  missingFields: string[]
+
+  transactionId?: string | null
+  errorMessage?: string | null
+
   createdAt: string
   updatedAt: string
 }

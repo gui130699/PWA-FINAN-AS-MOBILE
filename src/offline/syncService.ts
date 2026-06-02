@@ -23,6 +23,8 @@ import {
   getFixedAccountByLocalId,
   putInstallmentGroup,
   getInstallmentGroupByLocalId,
+  putQuickEntryDraft,
+  getQuickEntryDraftByLocalId,
 } from './offlineDb'
 import {
   addTransaction,
@@ -37,8 +39,11 @@ import {
   createInstallmentGroup,
   deleteInstallmentGroup,
   getInstallmentGroups as fsGetInstallmentGroups,
+  addQuickEntryDraft as fsAddQuickEntryDraft,
+  updateQuickEntryDraft as fsUpdateQuickEntryDraft,
+  deleteQuickEntryDraft as fsDeleteQuickEntryDraft,
 } from '../services/firestore'
-import type { Transaction, Category, FixedAccount } from '../types'
+import type { Transaction, Category, FixedAccount, QuickEntryDraft } from '../types'
 
 export { getPendingCount }
 
@@ -231,6 +236,49 @@ async function processItem(item: SyncQueueItem): Promise<void> {
           await deleteInstallmentGroup(item.uid, item.serverId)
         }
         await deleteLocalRecord('installment_groups_cache', item.localId)
+        await removeQueueItem(item.id)
+      }
+      return
+    }
+
+    // ─── Quick Entry Drafts ────────────────────────────────────────────────
+    if (item.collection === 'quickEntryDrafts') {
+      if (item.action === 'create') {
+        const local = await getQuickEntryDraftByLocalId(item.localId)
+        if (local?.deleted) {
+          await deleteLocalRecord('quick_entry_drafts_cache', item.localId)
+          await removeQueueItem(item.id)
+          return
+        }
+        const payload = item.payload as Omit<QuickEntryDraft, 'id' | 'createdAt' | 'updatedAt'>
+        const serverId = await fsAddQuickEntryDraft(item.uid, payload)
+        if (local) {
+          await putQuickEntryDraft({
+            ...local,
+            serverId,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'update') {
+        const targetId = item.serverId ?? item.localId
+        const payload = item.payload as Partial<QuickEntryDraft>
+        await fsUpdateQuickEntryDraft(item.uid, targetId, payload)
+        const local = await getQuickEntryDraftByLocalId(item.localId)
+        if (local) {
+          await putQuickEntryDraft({
+            ...local,
+            syncStatus: 'synced',
+            lastModifiedAt: new Date().toISOString(),
+          })
+        }
+        await removeQueueItem(item.id)
+      } else if (item.action === 'delete') {
+        if (item.serverId) {
+          await fsDeleteQuickEntryDraft(item.uid, item.serverId)
+        }
+        await deleteLocalRecord('quick_entry_drafts_cache', item.localId)
         await removeQueueItem(item.id)
       }
       return

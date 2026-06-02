@@ -188,6 +188,29 @@ service cloud.firestore {
         && (!('transactionNature' in d) || d.transactionNature in ['expense', 'income'])
         && d.updatedAt is timestamp;
     }
+
+    // ── Quick Entry Drafts ────────────────────────────────────────────────
+    match /users/{userId}/quickEntryDrafts/{draftId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && isNonEmptyString(request.resource.data.rawText)
+        && request.resource.data.rawText.size() <= 500
+        && request.resource.data.status in ['pending_review', 'converted', 'ignored', 'error']
+        && request.resource.data.source in ['manual', 'voice', 'web_speech']
+        && request.resource.data.messageType in ['text', 'speech']
+        && request.resource.data.transactionNature in ['expense', 'income']
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && (!('status' in request.resource.data) || request.resource.data.status in ['pending_review', 'converted', 'ignored', 'error'])
+        && request.resource.data.updatedAt is timestamp;
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
 

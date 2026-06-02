@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom'
 const titles: Record<string, string> = {
   '/': 'Dashboard',
   '/transactions': 'Lançamentos',
+  '/quick-entry': 'Entrada Rápida',
   '/fixed': 'Contas Fixas',
   '/installments': 'Parceladas',
   '/categories': 'Categorias',

@@ -102,3 +102,38 @@ export interface MonthFilter {
   month: number
   year: number
 }
+
+// ─── Entrada Rápida Inteligente ──────────────────────────────────────────────
+
+export type QuickEntrySource = 'manual' | 'voice' | 'web_speech'
+export type QuickEntryMessageType = 'text' | 'speech'
+export type QuickEntryStatus = 'pending_review' | 'converted' | 'ignored' | 'error'
+
+export interface QuickEntryDraft {
+  id: string
+  source: QuickEntrySource
+  messageType: QuickEntryMessageType
+
+  rawText: string
+  transcript?: string | null
+
+  parsedValue?: number | null
+  parsedPlace?: string | null
+  parsedDescription?: string | null
+  parsedDate?: string | null
+
+  suggestedCategoryId?: string | null
+  suggestedCategoryName?: string | null
+
+  transactionNature: TransactionNature
+  status: QuickEntryStatus
+
+  confidence: number
+  missingFields: string[]
+
+  transactionId?: string | null
+  errorMessage?: string | null
+
+  createdAt: Timestamp
+  updatedAt: Timestamp
+}

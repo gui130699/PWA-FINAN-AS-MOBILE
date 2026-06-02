@@ -14,6 +14,7 @@ import {
   BarChart2,
   HelpCircle,
   Database,
+  Zap,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -24,6 +25,7 @@ import { APP_VERSION, formatBuildDate } from '../../lib/version'
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/transactions', icon: Receipt, label: 'Lançamentos' },
+  { to: '/quick-entry', icon: Zap, label: 'Entrada Rápida' },
   { to: '/fixed', icon: RefreshCw, label: 'Contas Fixas' },
   { to: '/installments', icon: CreditCard, label: 'Parceladas' },
   { to: '/categories', icon: Tag, label: 'Categorias' },

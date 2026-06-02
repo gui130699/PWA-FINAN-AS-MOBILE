@@ -14,7 +14,7 @@ import {
   type WriteBatch,
 } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import type { Category, Transaction, FixedAccount, InstallmentGroup, TransactionNature } from '../types'
+import type { Category, Transaction, FixedAccount, InstallmentGroup, TransactionNature, QuickEntryDraft } from '../types'
 import { getMonthYear } from '../utils/formatters'
 import { addMonthsSafe, makeDateSafe } from '../utils/dateUtils'
 
@@ -781,5 +781,56 @@ export async function deleteFutureInstallmentTransactions(
   await commitBatchInChunks(ops)
   await refreshInstallmentGroupStats(uid, installmentGroupId)
   return { deleted: toDelete.length }
+}
+
+// ─── Quick Entry Drafts ───────────────────────────────────────────────────────
+
+export async function getQuickEntryDrafts(uid: string): Promise<QuickEntryDraft[]> {
+  const snap = await getDocs(col(uid, 'quickEntryDrafts'))
+  const drafts = snap.docs.map((d) => ({ id: d.id, ...d.data() } as QuickEntryDraft))
+  return drafts.sort((a, b) => {
+    const aTime = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0
+    const bTime = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0
+    return bTime - aTime
+  })
+}
+
+export async function getPendingQuickEntryDrafts(uid: string): Promise<QuickEntryDraft[]> {
+  const snap = await getDocs(
+    query(col(uid, 'quickEntryDrafts'), where('status', '==', 'pending_review')),
+  )
+  const drafts = snap.docs.map((d) => ({ id: d.id, ...d.data() } as QuickEntryDraft))
+  return drafts.sort((a, b) => {
+    const aTime = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0
+    const bTime = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0
+    return bTime - aTime
+  })
+}
+
+export async function addQuickEntryDraft(
+  uid: string,
+  data: Omit<QuickEntryDraft, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+  const ref = await addDoc(col(uid, 'quickEntryDrafts'), {
+    ...data,
+    createdAt: now(),
+    updatedAt: now(),
+  })
+  return ref.id
+}
+
+export async function updateQuickEntryDraft(
+  uid: string,
+  id: string,
+  data: Partial<QuickEntryDraft>,
+): Promise<void> {
+  await updateDoc(doc(db, `users/${uid}/quickEntryDrafts/${id}`), {
+    ...data,
+    updatedAt: now(),
+  })
+}
+
+export async function deleteQuickEntryDraft(uid: string, id: string): Promise<void> {
+  await deleteDoc(doc(db, `users/${uid}/quickEntryDrafts/${id}`))
 }
 
