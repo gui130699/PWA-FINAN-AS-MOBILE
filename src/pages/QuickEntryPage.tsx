@@ -221,7 +221,9 @@ function buildInitialForm(
 
   return {
     description: draft?.parsedDescription ?? draft?.parsedPlace ?? '',
-    valueStr: draft?.parsedValue ? formatCurrencyInput(String(draft.parsedValue)) : '',
+    valueStr: draft?.parsedValue != null
+      ? new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(draft.parsedValue)
+      : '',
     categoryId: suggestedCat?.id ?? '',
     categoryName: suggestedCat?.name ?? '',
     transactionNature: nature,
