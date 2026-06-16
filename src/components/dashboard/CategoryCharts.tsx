@@ -11,6 +11,7 @@ import {
   Cell,
 } from 'recharts'
 import type { CategoryRankItem } from '../../utils/dashboardInsights'
+import type { CategoryDisplayMode } from './dashboardConfig'
 import { DashboardWidgetCard, EmptyState } from './DashboardWidgetCard'
 import { formatCurrency } from '../../utils/formatters'
 
@@ -18,11 +19,15 @@ interface CategoryChartProps {
   title: string
   subtitle?: string
   items: CategoryRankItem[]
+  displayMode: CategoryDisplayMode
 }
 
-function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
+const COMPACT_CATEGORY_LIMIT = 5
+
+function CategoryChart({ title, subtitle, items, displayMode }: CategoryChartProps) {
   const [showAll, setShowAll] = useState(false)
-  const displayed = showAll ? items : items.slice(0, 5)
+  const expanded = displayMode === 'all' || showAll
+  const displayed = expanded ? items : items.slice(0, COMPACT_CATEGORY_LIMIT)
 
   if (items.length === 0) {
     return (
@@ -84,7 +89,7 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
         ))}
       </div>
 
-      {items.length > 5 && (
+      {displayMode === 'top5' && items.length > COMPACT_CATEGORY_LIMIT && (
         <button
           onClick={() => setShowAll((v) => !v)}
           className="mt-3 text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline w-full text-center"
@@ -96,23 +101,27 @@ function CategoryChart({ title, subtitle, items }: CategoryChartProps) {
   )
 }
 
-export function ExpenseCategoryChart({ items }: { items: CategoryRankItem[] }) {
+export function ExpenseCategoryChart({ items, displayMode }: { items: CategoryRankItem[]; displayMode: CategoryDisplayMode }) {
   return (
     <CategoryChart
+      key={`expense-${displayMode}`}
       title="Despesas por categoria"
-      subtitle="Top categorias do mês"
+      subtitle={displayMode === 'all' ? 'Todas as categorias do mes' : 'Top 5 categorias do mes'}
       items={items}
+      displayMode={displayMode}
     />
   )
 }
 
-export function IncomeCategoryChart({ items }: { items: CategoryRankItem[] }) {
+export function IncomeCategoryChart({ items, displayMode }: { items: CategoryRankItem[]; displayMode: CategoryDisplayMode }) {
   if (items.length === 0) return null
   return (
     <CategoryChart
+      key={`income-${displayMode}`}
       title="Receitas por categoria"
-      subtitle="Distribuição das receitas"
+      subtitle={displayMode === 'all' ? 'Todas as categorias do mes' : 'Top 5 categorias do mes'}
       items={items}
+      displayMode={displayMode}
     />
   )
 }

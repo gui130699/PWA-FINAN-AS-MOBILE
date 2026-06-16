@@ -336,7 +336,7 @@ export function getCategoryRanking(
   transactions: Transaction[],
   catTypeMap: Map<string, string>,
   nature: TransactionNature,
-  top = 8
+  top?: number
 ): CategoryRankItem[] {
   const filtered = transactions.filter((t) => getTransactionNature(t, catTypeMap) === nature)
   const total = filtered.reduce((s, t) => s + t.value, 0)
@@ -356,7 +356,7 @@ export function getCategoryRanking(
     }))
     .sort((a, b) => b.value - a.value)
 
-  return items.slice(0, top)
+  return typeof top === 'number' ? items.slice(0, top) : items
 }
 
 // ─── Top transações ───────────────────────────────────────────────────────────

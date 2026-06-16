@@ -50,6 +50,7 @@ export type WidgetId =
   | 'monthly_avg_comparison'
 
 export type ViewMode = 'compact' | 'full'
+export type CategoryDisplayMode = 'all' | 'top5'
 
 export const WIDGET_LABELS: Record<WidgetId, string> = {
   smart_summary:              'Resumo inteligente',
@@ -70,6 +71,8 @@ export const WIDGET_LABELS: Record<WidgetId, string> = {
 
 export const WIDGETS_KEY  = 'dashboard_widgets_v2'
 export const VIEW_MODE_KEY = 'dashboard_view_mode_v1'
+export const CATEGORY_DISPLAY_MODE_KEY = 'dashboard_category_display_mode_v1'
+export const DEFAULT_CATEGORY_DISPLAY_MODE: CategoryDisplayMode = 'all'
 
 export const DEFAULT_WIDGETS: WidgetId[] = [
   'smart_summary',
