@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard, Check, ChevronDown } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard, Check, ChevronDown, Search } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -29,6 +29,8 @@ import type { Transaction, TransactionType, TransactionStatus, RecurrenceType, T
 import { WEEK_DAY_LABELS } from '../types'
 
 type NatureFilter = 'all' | 'expense' | 'income'
+type SearchMode = 'description' | 'category' | 'transactionType'
+type TransactionTypeSearch = 'all' | TransactionType
 
 type SortOption =
   | 'chargeDate_asc'
@@ -78,14 +80,35 @@ function inferNatureFromEdit(
   return 'expense'
 }
 
+function monthStartISO(month: number, year: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-01`
+}
+
+function monthEndISO(month: number, year: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
 export function TransactionsPage() {
   const { month: cm, year: cy } = currentMonthYear()
   const [month, setMonth] = useState(cm)
   const [year, setYear] = useState(cy)
+  const [filterStartDate, setFilterStartDate] = useState(() => monthStartISO(cm, cy))
+  const [filterEndDate, setFilterEndDate] = useState(() => monthEndISO(cm, cy))
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'paid'>('all')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [catModalOpen, setCatModalOpen] = useState(false)
   const [filterNature, setFilterNature] = useState<NatureFilter>('all')
+  const [searchMode, setSearchMode] = useState<SearchMode>('description')
+  const [searchText, setSearchText] = useState('')
+  const [searchTransactionType, setSearchTransactionType] = useState<TransactionTypeSearch>('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null)
@@ -127,10 +150,17 @@ export function TransactionsPage() {
     return catTypeMap.get(t.categoryId) === 'income' ? 'income' : 'expense'
   }, [catTypeMap])
 
+  const normalizedSearch = normalizeSearch(searchText)
+
   const filtered = transactions.filter((t) => {
+    if (filterStartDate && t.chargeDate < filterStartDate) return false
+    if (filterEndDate && t.chargeDate > filterEndDate) return false
     if (filterStatus !== 'all' && t.status !== filterStatus) return false
     if (selectedCategoryIds.length > 0 && !selectedCategoryIds.includes(t.categoryId)) return false
     if (filterNature !== 'all' && getTxNature(t) !== filterNature) return false
+    if (searchMode === 'transactionType' && searchTransactionType !== 'all' && t.type !== searchTransactionType) return false
+    if (searchMode === 'description' && normalizedSearch && !normalizeSearch(t.description).includes(normalizedSearch)) return false
+    if (searchMode === 'category' && normalizedSearch && !normalizeSearch(t.categoryName).includes(normalizedSearch)) return false
     return true
   })
 
@@ -308,7 +338,16 @@ export function TransactionsPage() {
       {/* Header */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y) }} />
+          <MonthSelector
+            month={month}
+            year={year}
+            onChange={(m, y) => {
+              setMonth(m)
+              setYear(y)
+              setFilterStartDate(monthStartISO(m, y))
+              setFilterEndDate(monthEndISO(m, y))
+            }}
+          />
           <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditItem(null); setModalOpen(true) }}>
             Lançar
           </Button>
@@ -357,6 +396,59 @@ export function TransactionsPage() {
 
       {/* Filters */}
       <div className="flex flex-col gap-2">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 flex flex-col gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3">
+            <Select
+              label="Buscar por"
+              value={searchMode}
+              onChange={(e) => setSearchMode(e.target.value as SearchMode)}
+            >
+              <option value="description">Descrição do lançamento</option>
+              <option value="category">Categoria</option>
+              <option value="transactionType">Tipo de lançamento</option>
+            </Select>
+
+            {searchMode === 'transactionType' ? (
+              <Select
+                label="Tipo de lançamento"
+                value={searchTransactionType}
+                onChange={(e) => setSearchTransactionType(e.target.value as TransactionTypeSearch)}
+              >
+                <option value="all">Todos</option>
+                <option value="normal">Normal</option>
+                <option value="fixed">Fixa</option>
+                <option value="installment">Parcelada</option>
+              </Select>
+            ) : (
+              <Input
+                label={searchMode === 'category' ? 'Categoria' : 'Descrição do lançamento'}
+                icon={<Search className="w-4 h-4" />}
+                placeholder={searchMode === 'category' ? 'Digite a categoria...' : 'Digite a descrição...'}
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Data inicial"
+              type="date"
+              value={filterStartDate}
+              onChange={(e) => setFilterStartDate(e.target.value)}
+            />
+            <Input
+              label="Data final"
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => setFilterEndDate(e.target.value)}
+            />
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Por padrão, o período vai do dia 01 ao último dia do mês selecionado. Altere as datas para ver gastos de outro intervalo dentro do mês.
+          </p>
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-1">
           {(['all', 'pending', 'paid'] as const).map((s) => (
             <button
@@ -455,7 +547,7 @@ export function TransactionsPage() {
         <EmptyState
           icon={<Plus className="w-16 h-16" />}
           title="Nenhum lançamento"
-          description="Clique em Lançar para adicionar despesas"
+          description={transactions.length === 0 ? 'Clique em Lançar para adicionar despesas' : 'Nenhum lançamento encontrado para os filtros selecionados'}
         />
       ) : (
         <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">

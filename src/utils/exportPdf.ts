@@ -22,6 +22,15 @@ export interface PdfRowResumido {
   pending: number
 }
 
+export interface PdfRowGastosCategoria {
+  categoryName: string
+  count: number
+  total: number
+  paid: number
+  pending: number
+  percent: number
+}
+
 function todayBR(): string {
   return new Date().toLocaleDateString('pt-BR')
 }
@@ -130,6 +139,67 @@ export function exportResumidoToPdf(
   doc.text(`Total Receitas: ${formatCurrency(totalInc)}`, 14, finalY + 5)
   doc.text(`Total Despesas: ${formatCurrency(totalExp)}`, 14, finalY + 10)
   doc.text(`Saldo Final: ${formatCurrency(totalInc - totalExp)}`, 14, finalY + 15)
+
+  doc.save(filename)
+}
+
+export function exportGastosCategoriaToPdf(
+  rows: PdfRowGastosCategoria[],
+  startDate: string,
+  endDate: string,
+  filename: string,
+  filterLabel: string
+): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+  doc.setFontSize(16)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Relatório Financeiro — Gastos por categoria', 14, 18)
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'normal')
+  doc.text(
+    `Período: ${formatDate(startDate)} a ${formatDate(endDate)}    Emitido em: ${todayBR()}`,
+    14,
+    25
+  )
+  doc.text(`Categorias: ${filterLabel}`, 14, 30)
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Categoria', 'Qtd.', 'Total gasto', 'Pago', 'Pendente', '% do total']],
+    body: rows.map((r) => [
+      r.categoryName,
+      String(r.count),
+      formatCurrency(r.total),
+      formatCurrency(r.paid),
+      formatCurrency(r.pending),
+      `${r.percent}%`,
+    ]),
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+    alternateRowStyles: { fillColor: [245, 245, 250] },
+    columnStyles: {
+      1: { halign: 'center' },
+      2: { halign: 'right' },
+      3: { halign: 'right' },
+      4: { halign: 'right' },
+      5: { halign: 'right' },
+    },
+  })
+
+  const total = rows.reduce((s, r) => s + r.total, 0)
+  const paid = rows.reduce((s, r) => s + r.paid, 0)
+  const pending = rows.reduce((s, r) => s + r.pending, 0)
+  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6
+
+  doc.setFontSize(9)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Totais do período:', 14, finalY)
+  doc.setFont('helvetica', 'normal')
+  doc.text(`Total gasto: ${formatCurrency(total)}`, 14, finalY + 5)
+  doc.text(`Pago: ${formatCurrency(paid)}`, 14, finalY + 10)
+  doc.text(`Pendente: ${formatCurrency(pending)}`, 14, finalY + 15)
 
   doc.save(filename)
 }

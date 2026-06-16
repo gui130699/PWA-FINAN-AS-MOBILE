@@ -21,6 +21,15 @@ export interface ExcelRowResumido {
   'Total Pendente': string
 }
 
+export interface ExcelRowGastosCategoria {
+  Categoria: string
+  'Qtd. Lançamentos': number
+  'Total Gasto': string
+  Pago: string
+  Pendente: string
+  '% do Total': string
+}
+
 export function exportDetalhadoToExcel(
   rows: ExcelRowDetalhado[],
   filename: string
@@ -38,6 +47,16 @@ export function exportResumidoToExcel(
   const ws = XLSX.utils.json_to_sheet(rows)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Resumido')
+  XLSX.writeFile(wb, filename)
+}
+
+export function exportGastosCategoriaToExcel(
+  rows: ExcelRowGastosCategoria[],
+  filename: string
+): void {
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Gastos por categoria')
   XLSX.writeFile(wb, filename)
 }
 
