@@ -12,8 +12,8 @@ import { getTransactionsByDateRange } from '../offline/offlineDb'
 import { Timestamp } from 'firebase/firestore'
 import { toast } from '../components/ui/Toast'
 import type { Transaction, TransactionNature } from '../types'
-import type { ExcelRowDetalhado, ExcelRowResumido } from '../utils/exportExcel'
-import type { PdfRowDetalhado, PdfRowResumido } from '../utils/exportPdf'
+import type { ExcelRowDetalhado, ExcelRowGastosCategoria, ExcelRowResumido } from '../utils/exportExcel'
+import type { PdfRowDetalhado, PdfRowGastosCategoria, PdfRowResumido } from '../utils/exportPdf'
 
 function getNature(t: Transaction, catTypeMap: Map<string, string>): TransactionNature {
   if (t.transactionNature) return t.transactionNature
@@ -22,7 +22,66 @@ function getNature(t: Transaction, catTypeMap: Map<string, string>): Transaction
   return 'expense'
 }
 
-type ViewMode = 'resumido' | 'detalhado'
+type ReportMode = 'resumido' | 'detalhado' | 'gastos_categoria'
+
+interface CategoryExpenseReportRow {
+  categoryId: string
+  categoryName: string
+  count: number
+  total: number
+  paid: number
+  pending: number
+  percent: number
+}
+
+const REPORT_MODES: { id: ReportMode; label: string }[] = [
+  { id: 'resumido', label: 'Resumido' },
+  { id: 'detalhado', label: 'Detalhado' },
+  { id: 'gastos_categoria', label: 'Gastos por categoria' },
+]
+
+function buildCategoryExpenseReport(
+  transactions: Transaction[],
+  catTypeMap: Map<string, string>,
+  selectedCategoryIds: string[]
+): { rows: CategoryExpenseReportRow[]; transactions: Transaction[]; total: number; paid: number; pending: number } {
+  const selected = new Set(selectedCategoryIds)
+  const filtered = transactions.filter((t) => {
+    if (getNature(t, catTypeMap) !== 'expense') return false
+    return selected.size === 0 || selected.has(t.categoryId)
+  })
+  const total = filtered.reduce((s, t) => s + t.value, 0)
+  const paid = filtered.filter((t) => t.status === 'paid').reduce((s, t) => s + t.value, 0)
+  const pending = total - paid
+  const map = new Map<string, CategoryExpenseReportRow>()
+
+  for (const t of filtered) {
+    const key = t.categoryId || `category:${t.categoryName}`
+    const current = map.get(key) ?? {
+      categoryId: t.categoryId,
+      categoryName: t.categoryName || 'Sem categoria',
+      count: 0,
+      total: 0,
+      paid: 0,
+      pending: 0,
+      percent: 0,
+    }
+    current.count += 1
+    current.total += t.value
+    if (t.status === 'paid') current.paid += t.value
+    else current.pending += t.value
+    map.set(key, current)
+  }
+
+  const rows = Array.from(map.values())
+    .map((row) => ({
+      ...row,
+      percent: total > 0 ? Math.round((row.total / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.total - a.total)
+
+  return { rows, transactions: filtered, total, paid, pending }
+}
 
 export function ReportsPage() {
   const { month: cm, year: cy } = currentMonthYear()
@@ -32,7 +91,8 @@ export function ReportsPage() {
 
   const [startDate, setStartDate] = useState(firstDay)
   const [endDate, setEndDate] = useState(lastDay)
-  const [viewMode, setViewMode] = useState<ViewMode>('resumido')
+  const [reportMode, setReportMode] = useState<ReportMode>('resumido')
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -47,6 +107,38 @@ export function ReportsPage() {
     categories.forEach((c) => m.set(c.id, c.type))
     return m
   }, [categories])
+
+  const expenseCategories = useMemo(
+    () => categories
+      .filter((c) => c.type === 'expense' || c.type === 'both')
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })),
+    [categories]
+  )
+
+  const selectedCategoryLabel = useMemo(() => {
+    if (selectedCategoryIds.length === 0) return 'Todas as categorias'
+    const names = selectedCategoryIds
+      .map((id) => categories.find((c) => c.id === id)?.name)
+      .filter((name): name is string => Boolean(name))
+    return names.length > 0 ? names.join(', ') : `${selectedCategoryIds.length} categoria(s)`
+  }, [categories, selectedCategoryIds])
+
+  const categoryExpenseReport = useMemo(
+    () => buildCategoryExpenseReport(transactions, catTypeMap, selectedCategoryIds),
+    [transactions, catTypeMap, selectedCategoryIds]
+  )
+
+  const hasExportData = reportMode === 'gastos_categoria'
+    ? categoryExpenseReport.rows.length > 0
+    : transactions.length > 0
+
+  function toggleCategory(categoryId: string) {
+    setSelectedCategoryIds((current) => (
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId]
+    ))
+  }
 
   const handleSearch = async () => {
     if (!user || !startDate || !endDate) return
@@ -125,11 +217,20 @@ export function ReportsPage() {
   }, [transactions, catTypeMap])
 
   const handleExportExcel = async () => {
-    if (transactions.length === 0) { toast.error('Não há dados para exportar.'); return }
-    const { exportDetalhadoToExcel, exportResumidoToExcel } = await import('../utils/exportExcel')
+    if (!hasExportData) { toast.error('Não há dados para exportar.'); return }
+    const { exportDetalhadoToExcel, exportGastosCategoriaToExcel, exportResumidoToExcel } = await import('../utils/exportExcel')
     const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
-    const filename = `relatorio-financeiro-${today}.xlsx`
-    if (viewMode === 'detalhado') {
+    if (reportMode === 'gastos_categoria') {
+      const rows: ExcelRowGastosCategoria[] = categoryExpenseReport.rows.map((row) => ({
+        'Categoria': row.categoryName,
+        'Qtd. Lançamentos': row.count,
+        'Total Gasto': formatCurrency(row.total),
+        'Pago': formatCurrency(row.paid),
+        'Pendente': formatCurrency(row.pending),
+        '% do Total': `${row.percent}%`,
+      }))
+      exportGastosCategoriaToExcel(rows, `relatorio-gastos-por-categoria-${today}.xlsx`)
+    } else if (reportMode === 'detalhado') {
       const rows: ExcelRowDetalhado[] = transactions.map((t) => ({
         'Data Vencimento': formatDate(t.chargeDate),
         'Data Lançamento': formatDate(t.launchDate ?? ''),
@@ -140,7 +241,7 @@ export function ReportsPage() {
         'Tipo Lançamento': t.type === 'normal' ? 'Normal' : t.type === 'fixed' ? 'Fixa' : 'Parcelada',
         'Valor (R$)': formatCurrency(t.value),
       }))
-      exportDetalhadoToExcel(rows, filename)
+      exportDetalhadoToExcel(rows, `relatorio-financeiro-${today}.xlsx`)
     } else {
       const rows: ExcelRowResumido[] = grouped.map(([key, txs]) => {
         const [year, month] = key.split('-')
@@ -159,16 +260,31 @@ export function ReportsPage() {
           'Total Pendente': formatCurrency((incTotal - incPaid) + (expTotal - expPaid)),
         }
       })
-      exportResumidoToExcel(rows, filename)
+      exportResumidoToExcel(rows, `relatorio-financeiro-${today}.xlsx`)
     }
   }
 
   const handleExportPdf = async () => {
-    if (transactions.length === 0) { toast.error('Não há dados para exportar.'); return }
-    const { exportDetalhadoToPdf, exportResumidoToPdf } = await import('../utils/exportPdf')
+    if (!hasExportData) { toast.error('Não há dados para exportar.'); return }
+    const { exportDetalhadoToPdf, exportGastosCategoriaToPdf, exportResumidoToPdf } = await import('../utils/exportPdf')
     const today = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')
-    const filename = `relatorio-financeiro-${today}.pdf`
-    if (viewMode === 'detalhado') {
+    if (reportMode === 'gastos_categoria') {
+      const rows: PdfRowGastosCategoria[] = categoryExpenseReport.rows.map((row) => ({
+        categoryName: row.categoryName,
+        count: row.count,
+        total: row.total,
+        paid: row.paid,
+        pending: row.pending,
+        percent: row.percent,
+      }))
+      exportGastosCategoriaToPdf(
+        rows,
+        startDate,
+        endDate,
+        `relatorio-gastos-por-categoria-${today}.pdf`,
+        selectedCategoryLabel
+      )
+    } else if (reportMode === 'detalhado') {
       const rows: PdfRowDetalhado[] = transactions.map((t) => ({
         chargeDate: t.chargeDate,
         launchDate: t.launchDate ?? '',
@@ -179,7 +295,7 @@ export function ReportsPage() {
         type: t.type === 'normal' ? 'Normal' : t.type === 'fixed' ? 'Fixa' : 'Parcelada',
         value: t.value,
       }))
-      exportDetalhadoToPdf(rows, startDate, endDate, filename)
+      exportDetalhadoToPdf(rows, startDate, endDate, `relatorio-financeiro-${today}.pdf`)
     } else {
       const rows: PdfRowResumido[] = grouped.map(([key, txs]) => {
         const [year, month] = key.split('-')
@@ -195,7 +311,7 @@ export function ReportsPage() {
           paid: incPaid + expPaid, pending: (incTotal - incPaid) + (expTotal - expPaid),
         }
       })
-      exportResumidoToPdf(rows, startDate, endDate, filename)
+      exportResumidoToPdf(rows, startDate, endDate, `relatorio-financeiro-${today}.pdf`)
     }
   }
 
@@ -231,33 +347,82 @@ export function ReportsPage() {
             onChange={(e) => setEndDate(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 items-end">
-          <div className="flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shrink-0">
-            {(['resumido', 'detalhado'] as const).map((v) => (
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+            {REPORT_MODES.map((mode) => (
               <button
-                key={v}
-                onClick={() => setViewMode(v)}
-                className={`px-3 py-2 text-xs font-semibold capitalize transition-colors ${
-                  viewMode === v
+                key={mode.id}
+                onClick={() => setReportMode(mode.id)}
+                className={`px-2 py-2 text-[11px] sm:text-xs font-semibold transition-colors ${
+                  reportMode === mode.id
                     ? 'bg-indigo-600 text-white'
                     : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                 }`}
               >
-                {v}
+                {mode.label}
               </button>
             ))}
           </div>
-          <Button onClick={handleSearch} loading={loading} className="flex-1">
+          <Button onClick={handleSearch} loading={loading} className="w-full">
             Buscar
           </Button>
         </div>
+
+        {reportMode === 'gastos_categoria' && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Categorias do relatório</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Sem marcar nenhuma, o relatório usa todas as categorias de despesa.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCategoryIds([])}
+                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                  selectedCategoryIds.length === 0
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                Todas
+              </button>
+            </div>
+            {expenseCategories.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400">Nenhuma categoria de despesa cadastrada.</p>
+            ) : (
+              <div className="max-h-44 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1.5 pr-1">
+                {expenseCategories.map((category) => {
+                  const selected = selectedCategoryIds.includes(category.id)
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => toggleCategory(category.id)}
+                      className={`min-h-[40px] rounded-xl px-3 py-2 flex items-center gap-2 text-left text-xs font-medium transition-colors ${
+                        selected
+                          ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-700'
+                          : 'bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: category.color }} />
+                      <span className="truncate">{category.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           <Button
             variant="secondary"
             icon={<FileSpreadsheet className="w-4 h-4" />}
             onClick={handleExportExcel}
             size="sm"
-            disabled={!searched || transactions.length === 0}
+            disabled={!searched || !hasExportData}
             title="Exportar Excel"
           >
             Exportar Excel
@@ -267,7 +432,7 @@ export function ReportsPage() {
             icon={<Download className="w-4 h-4" />}
             onClick={handleExportPdf}
             size="sm"
-            disabled={!searched || transactions.length === 0}
+            disabled={!searched || !hasExportData}
             title="Exportar PDF"
           >
             Exportar PDF
@@ -280,6 +445,7 @@ export function ReportsPage() {
       {!loading && searched && (
         <>
           {/* Resumo geral */}
+          {reportMode !== 'gastos_categoria' && (
           <div className="flex flex-col gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Despesas</p>
             <div className="grid grid-cols-3 gap-2">
@@ -308,10 +474,23 @@ export function ReportsPage() {
               ))}
             </div>
           </div>
+          )}
 
-          {transactions.length === 0 ? (
+          {reportMode === 'gastos_categoria' ? (
+            categoryExpenseReport.rows.length === 0 ? (
+              <p className="text-center text-slate-500 dark:text-slate-400 py-8">Nenhum gasto encontrado para as categorias selecionadas.</p>
+            ) : (
+              <GastosCategoriaView
+                rows={categoryExpenseReport.rows}
+                total={categoryExpenseReport.total}
+                paid={categoryExpenseReport.paid}
+                pending={categoryExpenseReport.pending}
+                categoryLabel={selectedCategoryLabel}
+              />
+            )
+          ) : transactions.length === 0 ? (
             <p className="text-center text-slate-500 dark:text-slate-400 py-8">Nenhum lançamento no período.</p>
-          ) : viewMode === 'resumido' ? (
+          ) : reportMode === 'resumido' ? (
             <ResumoView grouped={grouped} catTypeMap={catTypeMap} />
           ) : (
             <DetalhadoView grouped={grouped} catTypeMap={catTypeMap} />
@@ -323,6 +502,71 @@ export function ReportsPage() {
 }
 
 // ─── Resumido: totais por mês ─────────────────────────────────────────────────
+function GastosCategoriaView({
+  rows,
+  total,
+  paid,
+  pending,
+  categoryLabel,
+}: {
+  rows: CategoryExpenseReportRow[]
+  total: number
+  paid: number
+  pending: number
+  categoryLabel: string
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Gastos por categoria</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">Categorias: {categoryLabel}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { label: 'Total gasto', value: total, bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-700 dark:text-indigo-300' },
+            { label: 'Pago', value: paid, bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-300' },
+            { label: 'Pendente', value: pending, bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300' },
+          ] as const).map((item) => (
+            <div key={item.label} className={`${item.bg} rounded-xl p-2.5 text-center`}>
+              <p className="text-[9px] sm:text-[10px] font-medium text-slate-500 dark:text-slate-400 leading-tight mb-0.5">{item.label}</p>
+              <p className={`text-xs sm:text-sm font-bold ${item.text} leading-tight`}>{formatCurrency(item.value)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+          <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
+            {rows.length} categoria{rows.length !== 1 ? 's' : ''} encontrada{rows.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+          {rows.map((row) => (
+            <div key={row.categoryId || row.categoryName} className="px-4 py-3 flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{row.categoryName}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{row.count} lançamento{row.count !== 1 ? 's' : ''} · {row.percent}% do total</p>
+                </div>
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 shrink-0">{formatCurrency(row.total)}</p>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                <div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.max(2, row.percent)}%` }} />
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>Pago: <strong className="text-rose-600 dark:text-rose-300">{formatCurrency(row.paid)}</strong></span>
+                <span>Pendente: <strong className="text-amber-600 dark:text-amber-300">{formatCurrency(row.pending)}</strong></span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ResumoView({ grouped, catTypeMap }: { grouped: [string, Transaction[]][]; catTypeMap: Map<string, string> }) {
   return (
     <div className="flex flex-col gap-3">
