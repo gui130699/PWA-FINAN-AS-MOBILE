@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard } from 'lucide-react'
+import { Plus, Pencil, Trash2, RefreshCw, Calendar, CalendarRange, ArrowDownToLine, Banknote, CreditCard, Check, ChevronDown } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Modal, ConfirmDialog } from '../components/ui/Modal'
@@ -788,9 +788,89 @@ interface TransactionModalProps {
   onClose: () => void
   onSaved: () => void
   editItem: Transaction | null
-  categories: { id: string; name: string; type: string }[]
+  categories: { id: string; name: string; type: string; color?: string }[]
   defaultMonth: number
   defaultYear: number
+}
+
+interface ScrollableCategorySelectProps {
+  categories: { id: string; name: string; color?: string }[]
+  value: string
+  onChange: (categoryId: string) => void
+}
+
+function ScrollableCategorySelect({ categories, value, onChange }: ScrollableCategorySelectProps) {
+  const [open, setOpen] = useState(false)
+  const selectedCategory = categories.find((category) => category.id === value)
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label id="transaction-category-label" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        Categoria
+      </label>
+      <button
+        type="button"
+        aria-labelledby="transaction-category-label"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="w-full min-h-[44px] rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2.5 flex items-center justify-between gap-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+      >
+        <span className={`flex items-center gap-2 min-w-0 ${selectedCategory ? '' : 'text-slate-500 dark:text-slate-400'}`}>
+          {selectedCategory?.color && (
+            <span
+              className="w-3 h-3 rounded-full shrink-0"
+              style={{ backgroundColor: selectedCategory.color }}
+            />
+          )}
+          <span className="truncate">{selectedCategory?.name ?? 'Selecione'}</span>
+        </span>
+        <ChevronDown className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-labelledby="transaction-category-label"
+          className="max-h-60 overflow-y-auto overscroll-contain touch-pan-y rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 p-1 shadow-inner"
+        >
+          {categories.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-center text-slate-500 dark:text-slate-400">
+              Nenhuma categoria disponível para este tipo.
+            </p>
+          ) : (
+            categories.map((category) => {
+              const selected = category.id === value
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => {
+                    onChange(category.id)
+                    setOpen(false)
+                  }}
+                  className={`w-full min-h-[44px] px-3 py-2 flex items-center gap-3 rounded-lg text-left text-sm transition-colors ${
+                    selected
+                      ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                      : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: category.color ?? '#94a3b8' }}
+                  />
+                  <span className="flex-1 truncate">{category.name}</span>
+                  {selected && <Check className="w-4 h-4 shrink-0" />}
+                </button>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function TransactionModal({ open, onClose, onSaved, editItem, categories, defaultMonth, defaultYear }: TransactionModalProps) {
@@ -1054,16 +1134,11 @@ function TransactionModal({ open, onClose, onSaved, editItem, categories, defaul
           </div>
         </div>
 
-        <Select
-          label="Categoria"
+        <ScrollableCategorySelect
+          categories={filteredCategories}
           value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-        >
-          <option value="">Selecione</option>
-          {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
+          onChange={setCategoryId}
+        />
 
         {type === 'normal' && (
           <>

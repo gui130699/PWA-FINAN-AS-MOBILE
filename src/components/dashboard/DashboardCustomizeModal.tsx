@@ -10,9 +10,11 @@ import { Modal } from '../ui/Modal'
 import { Button } from '../ui/Button'
 import {
   type CardId,
+  type CategoryDisplayMode,
   type WidgetId,
   type ViewMode,
   CARD_LABELS,
+  DEFAULT_CATEGORY_DISPLAY_MODE,
   DEFAULT_VISIBLE_CARDS,
   DEFAULT_WIDGETS,
   WIDGET_LABELS,
@@ -28,6 +30,8 @@ interface Props {
   onChangeWidgets: (ids: WidgetId[]) => void
   viewMode: ViewMode
   onChangeViewMode: (mode: ViewMode) => void
+  categoryDisplayMode: CategoryDisplayMode
+  onChangeCategoryDisplayMode: (mode: CategoryDisplayMode) => void
   // cards principais
   visibleCards: CardId[]
   onChangeVisibleCards: (ids: CardId[]) => void
@@ -43,6 +47,8 @@ export function DashboardCustomizeModal({
   onChangeWidgets,
   viewMode,
   onChangeViewMode,
+  categoryDisplayMode,
+  onChangeCategoryDisplayMode,
   visibleCards,
   onChangeVisibleCards,
 }: Props) {
@@ -97,6 +103,38 @@ export function DashboardCustomizeModal({
               ? 'Modo resumido: exibe os blocos principais apenas.'
               : 'Modo completo: exibe todos os blocos ativados abaixo.'}
           </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Graficos por categoria
+            </p>
+            <button
+              onClick={() => onChangeCategoryDisplayMode(DEFAULT_CATEGORY_DISPLAY_MODE)}
+              className="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+            >
+              Restaurar padrao
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Escolha se despesas e receitas por categoria abrem completas ou resumidas.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(['all', 'top5'] as CategoryDisplayMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => onChangeCategoryDisplayMode(mode)}
+                className={`py-2 px-3 rounded-xl text-sm font-medium border transition-colors ${
+                  categoryDisplayMode === mode
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+              >
+                {mode === 'all' ? 'Todas' : 'Top 5'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Cards principais ── */}

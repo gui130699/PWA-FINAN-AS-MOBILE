@@ -62,10 +62,13 @@ import { DashboardCustomizeModal } from '../components/dashboard/DashboardCustom
 import {
   WIDGETS_KEY,
   VIEW_MODE_KEY,
+  CATEGORY_DISPLAY_MODE_KEY,
+  DEFAULT_CATEGORY_DISPLAY_MODE,
   DEFAULT_WIDGETS,
   COMPACT_WIDGETS,
   CARD_STORAGE_KEY,
   DEFAULT_VISIBLE_CARDS,
+  type CategoryDisplayMode,
   type WidgetId,
   type ViewMode,
   type CardId,
@@ -108,11 +111,19 @@ export function DashboardPage() {
     try { const s = localStorage.getItem(VIEW_MODE_KEY); if (s === 'compact' || s === 'full') return s } catch { /* ignore */ }
     return 'full'
   })
+  const [categoryDisplayMode, setCategoryDisplayMode] = useState<CategoryDisplayMode>(() => {
+    try {
+      const s = localStorage.getItem(CATEGORY_DISPLAY_MODE_KEY)
+      if (s === 'all' || s === 'top5') return s
+    } catch { /* ignore */ }
+    return DEFAULT_CATEGORY_DISPLAY_MODE
+  })
   const [editMode, setEditMode] = useState(false)
   const [cardModal, setCardModal] = useState<{ title: string; items: Transaction[] } | null>(null)
 
   const handleChangeWidgets = (ids: WidgetId[]) => { setActiveWidgets(ids); localStorage.setItem(WIDGETS_KEY, JSON.stringify(ids)) }
   const handleChangeViewMode = (mode: ViewMode) => { setViewMode(mode); localStorage.setItem(VIEW_MODE_KEY, mode) }
+  const handleChangeCategoryDisplayMode = (mode: CategoryDisplayMode) => { setCategoryDisplayMode(mode); localStorage.setItem(CATEGORY_DISPLAY_MODE_KEY, mode) }
   const handleChangeVisibleCards = (ids: CardId[]) => { setVisibleCards(ids); localStorage.setItem(CARD_STORAGE_KEY, JSON.stringify(ids)) }
 
   const catTypeMap = useMemo(() => buildCatTypeMap(categories), [categories])
@@ -258,8 +269,8 @@ export function DashboardPage() {
       {isVisible('prev_comparison') && <PreviousMonthComparison comparison={comparison} hasPrevData={hasPrevData} />}
       {isVisible('top_expenses') && <TopExpensesWidget topTransactions={topExpenses} />}
       {isVisible('fixed_accounts') && <FixedAccountsWidget fixedSummary={fixedSummary} />}
-      {isVisible('expense_category') && <ExpenseCategoryChart items={expCategoryItems} />}
-      {isVisible('income_category') && <IncomeCategoryChart items={incCategoryItems} />}
+      {isVisible('expense_category') && <ExpenseCategoryChart items={expCategoryItems} displayMode={categoryDisplayMode} />}
+      {isVisible('income_category') && <IncomeCategoryChart items={incCategoryItems} displayMode={categoryDisplayMode} />}
       {isVisible('evolution_chart') && evolutionPoints.length > 0 && <EvolutionChart allPoints={evolutionPoints} />}
       {isVisible('annual_overview') && <AnnualOverviewWidget annual={annualSummary} year={year} />}
 
@@ -274,7 +285,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      <DashboardCustomizeModal open={editMode} onClose={() => setEditMode(false)} activeWidgets={activeWidgets} onChangeWidgets={handleChangeWidgets} viewMode={viewMode} onChangeViewMode={handleChangeViewMode} visibleCards={visibleCards} onChangeVisibleCards={handleChangeVisibleCards} />
+      <DashboardCustomizeModal open={editMode} onClose={() => setEditMode(false)} activeWidgets={activeWidgets} onChangeWidgets={handleChangeWidgets} viewMode={viewMode} onChangeViewMode={handleChangeViewMode} categoryDisplayMode={categoryDisplayMode} onChangeCategoryDisplayMode={handleChangeCategoryDisplayMode} visibleCards={visibleCards} onChangeVisibleCards={handleChangeVisibleCards} />
 
       <Modal open={cardModal !== null} onClose={() => setCardModal(null)} title={cardModal?.title ?? ''} size="md" footer={<Button onClick={() => setCardModal(null)}>Fechar</Button>}>
         {cardModal && (

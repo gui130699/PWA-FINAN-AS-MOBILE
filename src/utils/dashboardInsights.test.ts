@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildCatTypeMap, getTransactionNature, getMonthSummary } from './dashboardInsights'
+import { buildCatTypeMap, getTransactionNature, getMonthSummary, getCategoryRanking } from './dashboardInsights'
 import type { Transaction, Category } from '../types'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -131,5 +131,35 @@ describe('getMonthSummary', () => {
     const s = getMonthSummary(txs, catMap)
     expect(s.expFixed).toBe(200)
     expect(s.expInst).toBe(150)
+  })
+})
+
+// ─── getCategoryRanking ──────────────────────────────────────────────────────
+
+describe('getCategoryRanking', () => {
+  const catMap = buildCatTypeMap([catExpense])
+
+  it('retorna todas as categorias por padrao', () => {
+    const txs = Array.from({ length: 10 }, (_, index) => makeTx({
+      id: String(index + 1),
+      categoryId: `cat-expense-${index + 1}`,
+      categoryName: `Categoria ${index + 1}`,
+      value: index + 1,
+      transactionNature: 'expense',
+    }))
+
+    expect(getCategoryRanking(txs, catMap, 'expense')).toHaveLength(10)
+  })
+
+  it('respeita limite quando informado', () => {
+    const txs = Array.from({ length: 10 }, (_, index) => makeTx({
+      id: String(index + 1),
+      categoryId: `cat-expense-${index + 1}`,
+      categoryName: `Categoria ${index + 1}`,
+      value: index + 1,
+      transactionNature: 'expense',
+    }))
+
+    expect(getCategoryRanking(txs, catMap, 'expense', 3)).toHaveLength(3)
   })
 })
